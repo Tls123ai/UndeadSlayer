@@ -40,6 +40,14 @@ export default function GameRootPage() {
     user: null,
   });
 
+  // Keep the cinematic intro visible for at least 8 seconds.
+  const [minimumLoadingComplete, setMinimumLoadingComplete] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMinimumLoadingComplete(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // Game Progress State
   const [progress, setProgress] = useState<any>(null);
 
@@ -282,8 +290,9 @@ export default function GameRootPage() {
     return { atk, hp, def, crit };
   };
 
-  // Cinematic loading state while the saved session is restored.
-  if (!authState.loaded) {
+  // Keep the cinematic loading screen up until both the session check and
+  // the minimum 8-second intro have finished.
+  if (!authState.loaded || !minimumLoadingComplete) {
     return <LoadingScreen />;
   }
 
