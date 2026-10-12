@@ -8,6 +8,7 @@ import ChapterMapModal from "@/components/game/ChapterMapModal";
 import UpgradesModal from "@/components/game/UpgradesModal";
 import InventoryModal from "@/components/game/InventoryModal";
 import SettingsModal from "@/components/game/SettingsModal";
+import LoadingScreen from "@/components/game/LoadingScreen";
 import { HEROES, HeroDef, CHAPTERS } from "@/lib/gameData";
 import { sounds } from "@/lib/soundEffects";
 import {
@@ -280,16 +281,9 @@ export default function GameRootPage() {
     return { atk, hp, def, crit };
   };
 
-  // Loading state
+  // Cinematic loading state while the saved session is restored.
   if (!authState.loaded) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white font-sans">
-        <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
-        <p className="text-sm text-neutral-400 font-semibold tracking-wide">
-          Connecting to Undead Slayer Realm...
-        </p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // Not authenticated: Show Login & Register Screen
