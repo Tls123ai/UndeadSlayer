@@ -13,10 +13,10 @@ const DB_MISSING_RESPONSE = {
 
 export async function GET() {
   try {
-    await ensureSchema();
     if (!isDatabaseConfigured()) {
       return NextResponse.json(DB_MISSING_RESPONSE, { status: 503 });
     }
+    await ensureSchema();
     const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ authenticated: false }, { status: 200 });
