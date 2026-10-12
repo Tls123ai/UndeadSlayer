@@ -2,6 +2,7 @@
 
 import React from "react";
 import { HEROES } from "@/lib/gameData";
+import ArtImage from "@/components/game/ArtImage";
 
 const featuredHeroes = [HEROES.aiden, HEROES.luna, HEROES.riven];
 
@@ -45,7 +46,7 @@ export default function LoadingScreen() {
               className={`realm-loader__hero realm-loader__hero--${index + 1}`}
               style={{ borderColor: `${hero.accentColor}88`, boxShadow: `0 0 30px ${hero.color}22` }}
             >
-              <img src={hero.image} alt={hero.name} />
+              <ArtImage src={hero.image} alt={hero.name} fallbackText={hero.classIcon} />
             </div>
           ))}
         </div>
