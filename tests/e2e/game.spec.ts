@@ -25,16 +25,18 @@ async function savedProgress(page: Page) {
   return (await response.json()).progress;
 }
 
+// Next streaming temporarily retains a hidden copy of the route fallback.
+// Loading assertions must target the screen actually shown to the player.
 test("startup displays a branded accessible loader while the session/database is checked", async ({ page }) => {
   await page.route("**/api/auth/me", async (route) => { await pause(900); await route.continue(); });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("loading-screen")).toBeVisible();
+  await expect(page.getByTestId("loading-screen").filter({ visible: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "UNDEAD SLAYER", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Loading your adventure", exact: true })).toBeVisible();
   await expect(page.getByRole("progressbar")).toBeVisible();
   await expect(page.getByText("Connecting to the save database…", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create Account", exact: true })).toBeVisible();
-  await expect(page.getByTestId("loading-screen")).toHaveCount(0);
+  await expect(page.getByTestId("loading-screen").filter({ visible: true })).toHaveCount(0);
 });
 
 test("fast cached startup still shows the loading screen for at least two seconds", async ({ page }) => {
@@ -57,7 +59,7 @@ test("fast cached startup still shows the loading screen for at least two second
   });
   await page.route("**/api/auth/me", (route) => route.fulfill({ json: { authenticated: false, database: "embedded" } }));
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("loading-screen")).toBeVisible();
+  await expect(page.getByTestId("loading-screen").filter({ visible: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create Account", exact: true })).toBeVisible();
   const duration = await page.evaluate(() => {
     const timing = (window as unknown as { loadingMeasurements: { started?: number; finished?: number } }).loadingMeasurements;
@@ -74,7 +76,7 @@ test("database/startup failures have a retry screen instead of silently falling 
     else await route.continue();
   });
   await page.goto("/");
-  await expect(page.getByTestId("loading-screen").getByRole("alert")).toContainText("save database is unavailable");
+  await expect(page.getByTestId("loading-screen").filter({ visible: true }).getByRole("alert")).toContainText("save database is unavailable");
   await expect(page.getByRole("button", { name: "Create Account", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByRole("button", { name: "Create Account", exact: true })).toBeVisible();
@@ -179,12 +181,12 @@ test("battle loading finishes before the combat canvas mounts, with no runtime e
   page.on("pageerror", (error) => errors.push(error.message));
   await enterRealm(page);
   await page.getByRole("button", { name: "Continue Adventure", exact: true }).click();
-  await expect(page.getByTestId("loading-screen")).toBeVisible();
+  await expect(page.getByTestId("loading-screen").filter({ visible: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Entering Outskirts Infiltration" })).toBeVisible();
   await expect(page.locator("canvas")).toHaveCount(0);
   await expect(page.locator("canvas")).toBeVisible();
   await page.getByTitle("Pause (P)").click();
-  await expect(page.getByTestId("loading-screen")).toHaveCount(0);
+  await expect(page.getByTestId("loading-screen").filter({ visible: true })).toHaveCount(0);
   expect(errors).toEqual([]);
   await page.getByTitle("Abandon run").click();
   await expect(page.getByRole("button", { name: "Continue Adventure", exact: true })).toBeVisible();
@@ -198,7 +200,7 @@ test("artwork decode failures do not start combat and can be retried", async ({ 
     HTMLImageElement.prototype.decode = () => Promise.reject(new Error("test decode failure"));
   });
   await page.getByRole("button", { name: "Continue Adventure", exact: true }).click();
-  await expect(page.getByTestId("loading-screen").getByRole("alert")).toContainText("artwork could not be loaded");
+  await expect(page.getByTestId("loading-screen").filter({ visible: true }).getByRole("alert")).toContainText("artwork could not be loaded");
   await expect(page.locator("canvas")).toHaveCount(0);
   await page.evaluate(() => (window as unknown as { restoreArtworkDecode: () => void }).restoreArtworkDecode());
   await page.getByRole("button", { name: "Try again", exact: true }).click();
@@ -210,7 +212,7 @@ test.describe("mobile accessibility", () => {
   test("loading fits the viewport and respects reduced motion", async ({ page }) => {
     await page.route("**/api/auth/me", async (route) => { await pause(1000); await route.continue(); });
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByTestId("loading-screen")).toBeVisible();
+    await expect(page.getByTestId("loading-screen").filter({ visible: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(await page.locator(".realm-loader__rune").first().evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
     await expect(page.getByRole("button", { name: "Create Account", exact: true })).toBeVisible();

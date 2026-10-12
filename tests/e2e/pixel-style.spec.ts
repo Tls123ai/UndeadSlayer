@@ -15,7 +15,7 @@ async function noOverflow(page: Page) {
 test("pixel fonts, bitmap icons and square controls cover startup and authentication", async ({ page }) => {
   await page.route("**/api/auth/me", (route) => route.fulfill({ json: { authenticated: false, database: "embedded" } }));
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("loading-screen")).toBeVisible();
+  await expect(page.getByTestId("loading-screen").filter({ visible: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "UNDEAD SLAYER", exact: true })).toHaveCSS("font-family", /Press Start 2P/);
   await expect(page.getByRole("progressbar")).toHaveCSS("border-radius", "0px");
   await expect(page.locator("[data-pixel-icon=swords]").first()).toBeVisible();
