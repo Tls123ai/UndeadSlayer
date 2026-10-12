@@ -10,7 +10,6 @@ import { isDatabaseConfigured } from "@/db";
 
 export async function POST(req: Request) {
   try {
-    await ensureSchema();
     if (!isDatabaseConfigured()) {
       return NextResponse.json(
         {
@@ -20,6 +19,7 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
+    await ensureSchema();
     const { username, password } = await req.json();
 
     if (!username || typeof username !== "string" || username.trim().length < 3) {
