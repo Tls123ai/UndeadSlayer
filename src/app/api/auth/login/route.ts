@@ -1,24 +1,24 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { users, gameProgress } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { setSessionUser } from "@/lib/session";
 import { ensureSchema } from "@/db/ensureSchema";
-import { isDatabaseConfigured } from "@/db";
 
 export async function POST(req: Request) {
   try {
-    await ensureSchema();
     if (!isDatabaseConfigured()) {
       return NextResponse.json(
         {
           error:
-            "Database is not configured. Set the DATABASE_URL environment variable and redeploy.",
+            "Database is not configured. Set the DATABASE_URL environment variable in Vercel and redeploy.",
         },
         { status: 503 }
       );
     }
+
+    await ensureSchema();
     const { username, password } = await req.json();
 
     if (!username || !password) {
