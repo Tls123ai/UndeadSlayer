@@ -755,55 +755,10 @@ export const ENEMY_TYPES: Record<string, EnemyTypeData> = {
     { bg1: "#3a1250", bg2: "#170622", body: "#701a75", dark: "#250a33", eye: "#f43f5e", feature: "horns" }),
 };
 
-export const DEFAULT_INVENTORY_ITEMS = [
-  {
-    id: "init_weapon", itemId: "iron_sword", name: "Slayer's Iron Blade",
-    type: "weapon" as const, rarity: "common" as const,
-    atkBonus: 12, hpBonus: 30, defBonus: 5, critBonus: 0.02, equipped: true,
-    description: "Standard issued steel blade for young slayers.",
-  },
-  {
-    id: "init_armor", itemId: "leather_armor", name: "Hardened Leather Guard",
-    type: "armor" as const, rarity: "common" as const,
-    atkBonus: 0, hpBonus: 80, defBonus: 12, critBonus: 0, equipped: true,
-    description: "Reliable lightweight chest armor against fangs.",
-  },
-  {
-    id: "init_acc", itemId: "courage_ring", name: "Ring of Valor",
-    type: "accessory" as const, rarity: "common" as const,
-    atkBonus: 8, hpBonus: 40, defBonus: 4, critBonus: 0.04, equipped: true,
-    description: "A brass ring etched with runes of courage.",
-  },
-];
+export { DEFAULT_INVENTORY_ITEMS } from "./progress";
 
-/**
- * Hand-painted anime illustrations take priority. Heroes / bosses without a
- * painted file fall back to the smooth vector portraits built in artAssets.
- */
-const HERO_PORTRAIT_FILES: Record<string, string> = {
-  aiden: "/heroes/aiden.png",
-  luna: "/heroes/luna.png",
-  ronan: "/heroes/ronan.png",
-  mira: "/heroes/mira.png",
-  kael: "/heroes/kael.png",
-  bruno: "/heroes/bruno.png",
-};
-
-const BOSS_PORTRAIT_FILES: Record<string, string> = {
-  undead_warlord: "/enemies/undead_warlord.png",
-  demon_king: "/enemies/demon_king.png",
-  shadow_overlord: "/enemies/shadow_overlord.png",
-};
-
-Object.values(HEROES).forEach((h) => {
-  const file = HERO_PORTRAIT_FILES[h.id];
-  if (file) h.image = file;
-});
-
-CHAPTERS.forEach((ch) => {
-  const file = BOSS_PORTRAIT_FILES[ch.boss.key];
-  if (file) ch.boss.image = file;
-});
+// All portraits are bundled vector artwork. Do not replace them with paths to
+// absent PNG files: preloading and offline/local play must not depend on 404s.
 
 /**
  * Per-class battle silhouettes.

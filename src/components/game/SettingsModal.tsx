@@ -2,23 +2,18 @@
 
 import React from "react";
 import { sounds } from "@/lib/soundEffects";
+import type { GameSettings } from "@/lib/progress";
 import { Volume2, Sliders, Shield, Award, User, LogOut } from "lucide-react";
 
 interface SettingsModalProps {
-  settings: {
-    musicVolume: number;
-    sfxVolume: number;
-    autoTarget: boolean;
-    screenShake: boolean;
-    damageNumbers: boolean;
-  };
+  settings: GameSettings;
   username: string;
   level: number;
   xp: number;
   coins: number;
   unlockedCount: number;
   completedCount: number;
-  onUpdateSettings: (newSettings: any) => void;
+  onUpdateSettings: (newSettings: GameSettings) => void;
   onLogout: () => void;
   onClose: () => void;
 }
@@ -35,9 +30,9 @@ export default function SettingsModal({
   onLogout,
   onClose,
 }: SettingsModalProps) {
-  const handleToggle = (key: string) => {
+  const handleToggle = (key: "autoTarget" | "screenShake" | "damageNumbers") => {
     sounds.playClick();
-    const updated = { ...settings, [key]: !(settings as any)[key] };
+    const updated = { ...settings, [key]: !settings[key] };
     onUpdateSettings(updated);
   };
 

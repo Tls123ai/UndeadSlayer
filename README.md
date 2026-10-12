@@ -1,0 +1,97 @@
+# Undead Slayer: Chronicles
+
+A Next.js action RPG with 10 heroes, 5 chapters, database-backed accounts and persistent game saves.
+
+## Run locally
+
+Requires Node.js 22+.
+
+```bash
+npm ci
+npm run dev
+```
+
+Open `http://localhost:3000` and create an account. **No database credentials or separate database server are needed for local development.** The first request initializes a real PostgreSQL-compatible [PGlite](https://github.com/electric-sql/pglite) database at `data/undead-slayer`. Accounts and progress survive browser refreshes, logout/login, and server restarts. This is server-side SQL storage, not an in-memory mock or `localStorage`.
+
+`data/`, environment files, browser traces and caches are Git-ignored. Never commit database files or credentials. Back up the local data directory while the server is stopped.
+
+## Database setup and deployment
+
+Copy `.env.example` to `.env.local` if you need custom configuration.
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | A PostgreSQL connection URL. When supplied, it takes priority over `POSTGRES_URL` and embedded storage. Use the TLS/pooling options provided by your database host. |
+| `POSTGRES_URL` | Alternative connection variable supplied by Vercel PostgreSQL integrations. Used when `DATABASE_URL` is empty or absent. |
+| `PGLITE_DATA_DIR` | Persistent embedded database directory. Optional in development; **explicitly required** to use embedded storage with `next start`. |
+
+### Hosted / serverless production
+
+1. Connect/provision a PostgreSQL database in your hosting project (for Vercel, use its database integration settings).
+2. Set `DATABASE_URL` **or** `POSTGRES_URL` for the **Production** environment (and Preview if you use preview deployments). Keep the connection value in your hosting settings, never in chat, source code, or a `NEXT_PUBLIC_` variable.
+3. Deploy the updated commit to the branch that the production project builds. Redeploying an older `main` commit will not include changes made only in an Arena workspace or unmerged pull request.
+4. Check `/api/health`: it must return `{"ok":true,"database":"postgresql","persistent":true}`.
+
+A hosted database is **not automatically provisioned** by this repository. Vercel/AWS Lambda cannot use embedded storage: their ephemeral filesystems must not be mistaken for durable player saves. Missing or unavailable production configuration returns HTTP 503 and an actionable retry screen instead of pretending the game is ready. The branded loading screen renders before the database request, even if that request fails.
+
+### Single-server production
+
+For one Node process on a server with persistent disk:
+
+```bash
+npm run build
+PGLITE_DATA_DIR=data/undead-slayer npm run start
+```
+
+For containers, point `PGLITE_DATA_DIR` at a persistent mounted volume. **Do not run multiple processes against the same embedded database directory**, including the setup CLI while the game is running. Use external PostgreSQL for replicas, serverless, or concurrent processes. The build itself never needs a live database.
+
+### Schema and migrations
+
+The same Drizzle schema and versioned SQL migrations work with both database drivers:
+
+- `users`: unique usernames and bcrypt password hashes.
+- `sessions`: hashed opaque tokens, account ownership and 30-day expiry; logout revokes the token.
+- `game_progress`: coins, XP, potions, hero unlocks/selection, stage progress, upgrades, equipment and settings.
+
+Migrations in `drizzle/` run automatically before the first database request. Initialization is shared across routes; PostgreSQL migration application is locked across server instances. The initial migration safely adopts the previous unversioned tables without deleting existing saves. Older, unsigned identity cookies require signing in again.
+
+```bash
+npm run db:setup       # Initialize/apply migrations, then close the connection
+npm run db:generate    # Generate a migration after editing src/db/schema.ts
+```
+
+Stop a local embedded game server before running `db:setup`. Restart the game after adding migrations. Review generated SQL, back up production data, and apply migrations before deploying schema changes.
+
+The save API validates payloads and derives ownership only from the session. Registration creates the account and starter save in one transaction. Gameplay is still client-driven single-player logic; save validation is not an authoritative multiplayer anti-cheat system.
+
+## Loading and saving
+
+- `src/app/loading.tsx` provides the server-rendered route fallback before JavaScript is ready.
+- Startup checks the database/session and decodes bundled portraits before showing the login screen or saved game.
+- Sign-in/registration have full-screen loading feedback.
+- Starting a stage loads the combat code and decodes hero/enemy/boss artwork **before** the simulation mounts. Failed loads can be retried or cancelled.
+- The progress bar reflects completed tasks; network waits are indeterminate. The loading screen remains visible for at least 2 seconds on startup and 1 second during authentication/battle entry, so fast cached loads don't hide it. Slow loads don't incur an additional full delay, and cancelling battle entry cancels the completion wait.
+- Loading has accessible status/progress announcements, small-screen layouts and reduced-motion support. The screen itself uses only CSS/vector artwork, so it does not wait on external assets.
+- Autosaves are serialized. Only successful responses show “Progress saved”; failures retain local edits and display a retry action. Signing out waits for saves and refuses to discard failed ones. Expired sessions can sign in again without replacing pending progress.
+
+## Verification
+
+```bash
+npm run test          # Validation, migrations, transactions, persistence, failure retry
+npm run typecheck
+npm run lint          # Existing portrait <img> optimization warnings are non-blocking
+npm run build
+
+npx playwright install chromium
+npm run test:e2e      # Stop your dev server first; uses an isolated local test database
+```
+
+Browser tests cover startup/retry, registration/login/logout, saved progress restoration, failed-save recovery, rapid purchases, expired sessions, battle loading/artwork failures, mobile/reduced-motion behavior, and API ownership/token checks.
+
+To test an existing development preview instead of starting a test server:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://localhost:3000 npm run test:e2e
+```
+
+This creates randomly named test accounts in that server's database. `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` optionally selects an already-installed Chromium binary.

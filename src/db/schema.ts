@@ -1,4 +1,14 @@
-import { pgTable, text, serial, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, text, serial, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import {
+  DEFAULT_HERO_LEVELS,
+  DEFAULT_INVENTORY_ITEMS,
+  DEFAULT_SETTINGS,
+  DEFAULT_STAT_UPGRADES,
+  type GameSettings,
+  type InventoryItem,
+  type StatUpgrades,
+} from "@/lib/progress";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -8,70 +18,33 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// The browser receives only a random token. Its hash, owner, and expiry live here.
+export const sessions = pgTable("sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("sessions_user_id_idx").on(table.userId),
+  index("sessions_expires_at_idx").on(table.expiresAt),
+]);
+
 export const gameProgress = pgTable("game_progress", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .unique()
-    .references(() => users.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   level: integer("level").default(1).notNull(),
   xp: integer("xp").default(0).notNull(),
-  coins: integer("coins").default(500).notNull(),
+  coins: integer("coins").default(600).notNull(),
   healthPotions: integer("health_potions").default(5).notNull(),
   selectedHeroId: text("selected_hero_id").default("aiden").notNull(),
   highestChapterUnlocked: integer("highest_chapter_unlocked").default(1).notNull(),
-  highestLevelUnlocked: integer("highest_level_unlocked").default(1).notNull(), // Chapter 1, level 1
-  completedLevels: jsonb("completed_levels").$type<string[]>().default(["0-0"]).notNull(), // array of "ch-lvl" completed
+  highestLevelUnlocked: integer("highest_level_unlocked").default(1).notNull(),
+  completedLevels: jsonb("completed_levels").$type<string[]>().default([]).notNull(),
   unlockedHeroes: jsonb("unlocked_heroes").$type<string[]>().default(["aiden", "luna"]).notNull(),
-  heroLevels: jsonb("hero_levels").$type<Record<string, number>>().default({
-    aiden: 1,
-    luna: 1,
-    ronan: 1,
-    mira: 1,
-    kael: 1,
-    bruno: 1,
-    sylvie: 1,
-    darius: 1,
-    elian: 1,
-    riven: 1,
-  }).notNull(),
-  statUpgrades: jsonb("stat_upgrades").$type<{
-    attackLevel: number;
-    healthLevel: number;
-    defenseLevel: number;
-    skillLevel: number;
-  }>().default({
-    attackLevel: 1,
-    healthLevel: 1,
-    defenseLevel: 1,
-    skillLevel: 1,
-  }).notNull(),
-  inventory: jsonb("inventory").$type<Array<{
-    id: string;
-    itemId: string;
-    name: string;
-    type: "weapon" | "armor" | "accessory" | "material";
-    rarity: "common" | "rare" | "epic" | "legendary";
-    atkBonus: number;
-    hpBonus: number;
-    defBonus: number;
-    critBonus: number;
-    equipped: boolean;
-    description: string;
-  }>>().default([]).notNull(),
-  settings: jsonb("settings").$type<{
-    musicVolume: number;
-    sfxVolume: number;
-    autoTarget: boolean;
-    screenShake: boolean;
-    damageNumbers: boolean;
-  }>().default({
-    musicVolume: 80,
-    sfxVolume: 80,
-    autoTarget: true,
-    screenShake: true,
-    damageNumbers: true,
-  }).notNull(),
+  heroLevels: jsonb("hero_levels").$type<Record<string, number>>().default(DEFAULT_HERO_LEVELS).notNull(),
+  statUpgrades: jsonb("stat_upgrades").$type<StatUpgrades>().default(DEFAULT_STAT_UPGRADES).notNull(),
+  inventory: jsonb("inventory").$type<InventoryItem[]>().default(sql.raw(`'${JSON.stringify(DEFAULT_INVENTORY_ITEMS).replace(/'/g, "''")}'::jsonb`)).notNull(),
+  settings: jsonb("settings").$type<GameSettings>().default(DEFAULT_SETTINGS).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

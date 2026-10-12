@@ -1,23 +1,20 @@
-import { db, isDatabaseConfigured } from "@/db";
 import { sql } from "drizzle-orm";
+import { getDatabase, getDatabaseMode, DatabaseUnavailableError } from "@/db";
+import { json } from "@/lib/api";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!isDatabaseConfigured()) {
-    return Response.json(
-      {
-        ok: false,
-        database: "unconfigured",
-        hint: "Set the DATABASE_URL environment variable (Vercel Dashboard → Project → Settings → Environment Variables) and redeploy.",
-      },
-      { status: 503 }
-    );
-  }
   try {
+    const db = await getDatabase();
     await db.execute(sql`select 1`);
-    return Response.json({ ok: true });
-  } catch {
-    return Response.json({ ok: false }, { status: 500 });
+    return json({ ok: true, database: getDatabaseMode(), persistent: true });
+  } catch (error) {
+    return json({
+      ok: false,
+      database: getDatabaseMode() === "unconfigured" ? "unconfigured" : "unavailable",
+      error: error instanceof DatabaseUnavailableError ? error.message : "The save database is unavailable. Please try again in a moment.",
+    }, 503);
   }
 }

@@ -89,3 +89,153 @@ canvas {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 130, 200, 0.55);
 }
+
+/* The loading screen is CSS/vector-only: it never waits on external artwork. */
+.realm-loader {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  min-height: 100svh;
+  width: 100%;
+  overflow: hidden;
+  padding: 52px 24px 30px;
+  background: #090a10;
+  color: #e6e2dc;
+  font-family: var(--font-ui);
+}
+.realm-loader__sky {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse at 50% 35%, #8e63201f, transparent 42%),
+    radial-gradient(ellipse at 15% 80%, #58274622, transparent 55%),
+    radial-gradient(ellipse at 85% 65%, #1c2b4a40, transparent 50%),
+    linear-gradient(180deg, #0c0e16, #08090e);
+}
+.realm-loader__sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .16;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, #ffffff07 3px 4px);
+  pointer-events: none;
+}
+.realm-loader__mountains {
+  position: absolute;
+  inset: auto 0 0;
+  height: 38%;
+  z-index: -1;
+  opacity: .8;
+  background: linear-gradient(180deg, #171923, #07080c);
+  clip-path: polygon(0 36%, 9% 21%, 18% 44%, 29% 8%, 37% 38%, 44% 31%, 51% 62%, 61% 27%, 69% 45%, 80% 0, 88% 35%, 96% 24%, 100% 37%, 100% 100%, 0 100%);
+}
+.realm-loader__content { width: min(100%, 480px); text-align: center; z-index: 1; }
+.realm-loader__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  color: #857963;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .26em;
+}
+.realm-loader__eyebrow > span { height: 1px; width: 28px; background: #86714a66; }
+.realm-loader__emblem { position: relative; margin: 32px auto 28px; width: 124px; height: 124px; }
+.realm-loader__rune {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #a7813b45;
+  border-radius: 50%;
+  border-top-color: #d3ac6466;
+  animation: rune-turn 24s linear infinite;
+  box-shadow: 0 0 50px #d69b2012;
+}
+.realm-loader__rune::before, .realm-loader__rune::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #cfa24f;
+  box-shadow: 0 0 14px #efb65966;
+  transform: rotate(45deg);
+  left: calc(50% - 3px);
+  top: -3px;
+}
+.realm-loader__rune::after { top: auto; bottom: -3px; }
+.realm-loader__rune--inner { inset: 11px; border-style: dashed; opacity: .45; animation-direction: reverse; }
+.realm-loader__rune--inner::before, .realm-loader__rune--inner::after { display: none; }
+.realm-loader__crest {
+  position: absolute;
+  inset: 23px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cfa24f44;
+  border-radius: 20px;
+  color: #e6bc71;
+  background: linear-gradient(145deg, #382b1680, #12131c);
+  box-shadow: inset 0 1px #efd39215, 0 0 36px #c28b2815;
+  transform: rotate(45deg);
+}
+.realm-loader__crest svg { width: 47px; height: 47px; transform: rotate(-45deg); filter: drop-shadow(0 2px 8px #d69b2033); }
+.realm-loader__brand {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(31px, 6vw, 46px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: .055em;
+  color: #f2e8d3;
+  text-shadow: 0 3px 22px #cfa24f18;
+}
+.realm-loader__brand > span { color: #d9ad63; }
+.realm-loader__chronicles { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 12px; font-size: 10px; letter-spacing: .5em; color: #a3957c; }
+.realm-loader__chronicles > span { height: 1px; width: 46px; background: linear-gradient(90deg, transparent, #a78a5255); }
+.realm-loader__chronicles > span:last-child { transform: rotate(180deg); }
+.realm-loader__activity { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; margin: 22px auto 0; padding: 7px 13px; border: 1px solid #cfa24f25; border-radius: 99px; background: #cfa24f0a; color: #c5a36a; font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+.realm-loader__loading { margin-top: 26px; text-align: left; }
+.realm-loader__title { text-align: center; margin-bottom: 22px; font-size: 14px; font-weight: 500; color: #d7d0c3; letter-spacing: .04em; }
+.realm-loader__status { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11px; color: #929098; margin-bottom: 10px; min-height: 18px; }
+.realm-loader__status > span { flex-shrink: 0; font-size: 10px; font-variant-numeric: tabular-nums; color: #ccab70; }
+.realm-loader__track { height: 6px; border-radius: 99px; overflow: hidden; background: #202027; box-shadow: 0 0 0 1px #ffffff05; }
+.realm-loader__fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #906027, #d4a553, #f0d29a); box-shadow: 0 0 14px #cda55844; transition: width 280ms ease; }
+.realm-loader__track--indeterminate .realm-loader__fill { width: 36%; animation: realm-loading 1.8s ease-in-out infinite; }
+.realm-loader__steps { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; padding: 0; margin: 18px 0 0; list-style: none; }
+.realm-loader__steps li { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #66656e; }
+.realm-loader__steps li[data-state="active"] { color: #c4a369; }
+.realm-loader__steps li[data-state="complete"] { color: #93a993; }
+.realm-loader__tip { display: flex; align-items: center; text-align: left; gap: 14px; margin-top: 40px; padding: 18px 20px; border: 1px solid #bda06d15; border-radius: 12px; background: #b8995810; }
+.realm-loader__tip > svg { flex-shrink: 0; color: #b18f53; }
+.realm-loader__tip p { margin: 0; color: #929098; font-size: 11px; line-height: 1.7; }
+.realm-loader__tip p > span { display: block; font-size: 8px; font-weight: 600; color: #b69b6d; letter-spacing: .2em; margin-bottom: 4px; }
+.realm-loader__footer { margin-top: 50px; text-align: center; color: #66616b; font-size: 8px; letter-spacing: .22em; z-index: 1; }
+.realm-loader__footer span { color: #9c794a; padding: 0 10px; font-size: 6px; }
+.realm-loader__spinner { animation: rune-turn 1.2s linear infinite; }
+.realm-loader__embers { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+.realm-loader__embers span { position: absolute; bottom: 8%; width: 2px; height: 3px; border-radius: 50%; background: #d9a254; box-shadow: 0 0 8px #d9a254; animation: realm-ember 8s linear infinite; opacity: 0; }
+.realm-loader__error { margin: 0; padding: 14px 18px; border: 1px solid #a75c4733; border-radius: 10px; background: #81332115; color: #e8ac95; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.realm-loader__actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.realm-loader__actions button { display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #c79c5155; background: #c79c5120; color: #e4c38d; padding: 10px 18px; border-radius: 9px; cursor: pointer; font-size: 12px; transition: background 150ms; }
+.realm-loader__actions button:hover { background: #c79c5133; }
+.realm-loader__actions button:focus-visible { outline: 2px solid #e4c38d; outline-offset: 4px; }
+.realm-loader__actions .realm-loader__back { background: transparent; border-color: #ffffff15; color: #aba6a1; }
+@keyframes rune-turn { to { transform: rotate(360deg); } }
+@keyframes realm-loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(380%); } }
+@keyframes realm-ember { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: .5; } 75% { opacity: .3; } 100% { transform: translate(38px, -55vh); opacity: 0; } }
+@media (max-width: 480px) {
+  .realm-loader { padding: 32px 22px 24px; }
+  .realm-loader__emblem { margin-top: 28px; margin-bottom: 26px; }
+  .realm-loader__loading { margin-top: 22px; }
+  .realm-loader__tip { margin-top: 30px; padding: 14px 16px; }
+  .realm-loader__steps { gap: 8px; }
+  .realm-loader__steps li { font-size: 9px; gap: 4px; }
+  .realm-loader__footer { letter-spacing: .12em; margin-top: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .realm-loader__rune, .realm-loader__spinner, .realm-loader__embers span { animation: none; }
+  .realm-loader__track--indeterminate .realm-loader__fill { animation: none; width: 100%; opacity: .5; }
+  .realm-loader__fill { transition: none; }
+}

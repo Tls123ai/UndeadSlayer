@@ -117,6 +117,16 @@ function resolveObstacleCollision(pos: { x: number; y: number }, radius: number,
   }
 }
 
+const impact = (x: number, y: number, color: string, count: number): Particle[] => {
+  const res: Particle[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = Math.random() * 4 + 1.4;
+    res.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, color, radius: Math.random() * 3.4 + 1.8, life: 0.42 + Math.random() * 0.3, maxLife: 0.72 });
+  }
+  return res;
+};
+
 export default function CombatEngine({
   heroId, chapterId, levelNumber, statUpgrades, equippedStats,
   healthPotions: initialPotions, settings, onBattleEnd, onExit,
@@ -185,7 +195,7 @@ export default function CombatEngine({
     keys: { up: false, down: false, left: false, right: false, attack: false },
     joystick: { active: false, angle: 0, power: 0 },
     shakeTime: 0,
-    lastTime: performance.now(),
+    lastTime: 0,
     potionsUsed: 0,
     room: 1,
     roomCleared: false,
@@ -204,10 +214,10 @@ export default function CombatEngine({
     },
   });
 
-  const say = (text: string, ms = 2200) => {
+  const say = useCallback((text: string, ms = 2200) => {
     setBanner(text);
     setTimeout(() => setBanner(null), ms);
-  };
+  }, []);
 
   useEffect(() => {
     // Warm the artwork cache so battle sprites render from the real portraits
@@ -224,20 +234,10 @@ export default function CombatEngine({
 
   /* ---------------- helpers ---------------- */
 
-  const heroAtkNow = () => Math.round(baseAtk * stateRef.current.buffs.atk);
-  const heroMaxHpNow = () => Math.round(baseMaxHp * stateRef.current.buffs.hp);
-  const heroArmorMaxNow = () => baseArmor + stateRef.current.buffs.armor;
-  const heroEnergyMaxNow = () => baseEnergyMax + stateRef.current.buffs.energy;
-
-  const impact = (x: number, y: number, color: string, count: number): Particle[] => {
-    const res: Particle[] = [];
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = Math.random() * 4 + 1.4;
-      res.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, color, radius: Math.random() * 3.4 + 1.8, life: 0.42 + Math.random() * 0.3, maxLife: 0.72 });
-    }
-    return res;
-  };
+  const heroAtkNow = useCallback(() => Math.round(baseAtk * stateRef.current.buffs.atk), [baseAtk]);
+  const heroMaxHpNow = useCallback(() => Math.round(baseMaxHp * stateRef.current.buffs.hp), [baseMaxHp]);
+  const heroArmorMaxNow = useCallback(() => baseArmor + stateRef.current.buffs.armor, [baseArmor]);
+  const heroEnergyMaxNow = useCallback(() => baseEnergyMax + stateRef.current.buffs.energy, [baseEnergyMax]);
 
   const dropPickups = (x: number, y: number, boss: boolean, elite: boolean) => {
     const s = stateRef.current;
@@ -253,7 +253,29 @@ export default function CombatEngine({
     }
   };
 
-  const damageEnemy = (enemy: EnemyEntity, baseDamage: number, canCrit = true) => {
+  const summonMinions = useCallback((from: EnemyEntity, count: number, elite = false) => {
+    const s = stateRef.current;
+    const pool = levelDef.enemyTypes.length ? levelDef.enemyTypes : ["zombie"];
+    for (let i = 0; i < count; i++) {
+      const key = pool[Math.floor(Math.random() * pool.length)];
+      const data = ENEMY_TYPES[key] || ENEMY_TYPES.zombie;
+      const hp = Math.round(data.baseHp * (1 + chapterId * 0.3) * (elite ? 2.4 : 1));
+      s.enemies.push({
+        id: Math.random(), typeKey: key, name: elite ? "Shadow Clone" : data.name,
+        avatar: data.avatar, image: data.image, sprite: { ...data.sprite, scale: elite ? data.sprite.scale + 1 : data.sprite.scale },
+        x: from.x + (Math.random() - 0.5) * 180, y: from.y + (Math.random() - 0.5) * 100,
+        hp, maxHp: hp, atk: Math.round(data.baseAtk * (1 + chapterId * 0.25) * (elite ? 1.4 : 1)),
+        speed: data.speed * (elite ? 1.25 : 1), color: elite ? "#a855f7" : data.color,
+        radius: data.sprite.scale * (elite ? 3.6 : 3.1), attackRange: data.attackRange,
+        isBoss: false, isElite: elite, bossPhase: 0, isRanged: data.isRanged,
+        attackCooldown: 1.1, specialTimer: elite ? 4 : 99, chargeTimer: 0,
+        hitFlash: 0, facingLeft: true, animTick: Math.random() * 8, attackT: 0, moving: false, casting: false,
+      });
+    }
+    setEliteCount(s.enemies.filter((e) => e.isElite).length);
+  }, [levelDef.enemyTypes, chapterId]);
+
+  const damageEnemy = useCallback((enemy: EnemyEntity, baseDamage: number, canCrit = true) => {
     if (enemy.dying) return; // corpses can't be hit
     const s = stateRef.current;
     const crit = Math.min(0.9, heroCritRate + s.buffs.crit);
@@ -301,31 +323,9 @@ export default function CombatEngine({
         say("BOSS ENRAGED — PHASE 2", 2200);
       }
     }
-  };
+  }, [heroCritRate, settings.damageNumbers, heroMaxHpNow, say, summonMinions]);
 
-  const summonMinions = (from: EnemyEntity, count: number, elite = false) => {
-    const s = stateRef.current;
-    const pool = levelDef.enemyTypes.length ? levelDef.enemyTypes : ["zombie"];
-    for (let i = 0; i < count; i++) {
-      const key = pool[Math.floor(Math.random() * pool.length)];
-      const data = ENEMY_TYPES[key] || ENEMY_TYPES.zombie;
-      const hp = Math.round(data.baseHp * (1 + chapterId * 0.3) * (elite ? 2.4 : 1));
-      s.enemies.push({
-        id: Math.random(), typeKey: key, name: elite ? "Shadow Clone" : data.name,
-        avatar: data.avatar, image: data.image, sprite: { ...data.sprite, scale: elite ? data.sprite.scale + 1 : data.sprite.scale },
-        x: from.x + (Math.random() - 0.5) * 180, y: from.y + (Math.random() - 0.5) * 100,
-        hp, maxHp: hp, atk: Math.round(data.baseAtk * (1 + chapterId * 0.25) * (elite ? 1.4 : 1)),
-        speed: data.speed * (elite ? 1.25 : 1), color: elite ? "#a855f7" : data.color,
-        radius: data.sprite.scale * (elite ? 3.6 : 3.1), attackRange: data.attackRange,
-        isBoss: false, isElite: elite, bossPhase: 0, isRanged: data.isRanged,
-        attackCooldown: 1.1, specialTimer: elite ? 4 : 99, chargeTimer: 0,
-        hitFlash: 0, facingLeft: true, animTick: Math.random() * 8, attackT: 0, moving: false, casting: false,
-      });
-    }
-    setEliteCount(s.enemies.filter((e) => e.isElite).length);
-  };
-
-  const addZones = (count: number, radius: number, windup: number, damage: number, color: string, label: string, atHero: boolean) => {
+  const addZones = useCallback((count: number, radius: number, windup: number, damage: number, color: string, label: string, atHero: boolean) => {
     const s = stateRef.current;
     for (let i = 0; i < count; i++) {
       const tx = atHero ? s.hero.x + (i === 0 ? 0 : (Math.random() - 0.5) * 280) : ARENA.minX + 70 + Math.random() * (ARENA.maxX - ARENA.minX - 140);
@@ -336,9 +336,9 @@ export default function CombatEngine({
         radius, timer: windup, windup, damage, color, label,
       });
     }
-  };
+  }, []);
 
-  const radialBurst = (from: EnemyEntity, count: number, speed: number, damage: number, color: string) => {
+  const radialBurst = useCallback((from: EnemyEntity, count: number, speed: number, damage: number, color: string) => {
     const s = stateRef.current;
     const off = Math.random() * Math.PI;
     for (let i = 0; i < count; i++) {
@@ -347,9 +347,9 @@ export default function CombatEngine({
     }
     from.casting = true;
     setTimeout(() => { from.casting = false; }, 320);
-  };
+  }, []);
 
-  const spiralBurst = (from: EnemyEntity, shots: number, speed: number, damage: number, color: string) => {
+  const spiralBurst = useCallback((from: EnemyEntity, shots: number, speed: number, damage: number, color: string) => {
     const s = stateRef.current;
     let a = Math.random() * Math.PI * 2;
     for (let i = 0; i < shots; i++) {
@@ -360,9 +360,9 @@ export default function CombatEngine({
         s.bullets.push({ x: from.x, y: from.y - 24, vx: Math.cos(a + Math.PI) * speed, vy: Math.sin(a + Math.PI) * speed, damage, radius: 7, color, isHero: false, type: "orb", duration: 3.4 });
       }, i * 70);
     }
-  };
+  }, []);
 
-  const aimedFan = (from: EnemyEntity, count: number, speed: number, damage: number, color: string, spread = Math.PI / 3) => {
+  const aimedFan = useCallback((from: EnemyEntity, count: number, speed: number, damage: number, color: string, spread = Math.PI / 3) => {
     const s = stateRef.current;
     const base = Math.atan2(s.hero.y - from.y, s.hero.x - from.x);
     for (let i = 0; i < count; i++) {
@@ -371,9 +371,9 @@ export default function CombatEngine({
     }
     from.casting = true;
     setTimeout(() => { from.casting = false; }, 300);
-  };
+  }, []);
 
-  const heroTakeHit = (rawDamage: number) => {
+  const heroTakeHit = useCallback((rawDamage: number) => {
     const s = stateRef.current;
     if (s.hero.invuln > 0 || s.battleResolved) {
       if (s.hero.invuln > 0) {
@@ -381,7 +381,7 @@ export default function CombatEngine({
       }
       return;
     }
-    let dmg = Math.max(5, Math.round(rawDamage * (1 - Math.min(0.45, heroDefVal() * 0.004))));
+    let dmg = Math.max(5, Math.round(rawDamage * (1 - Math.min(0.45, Math.round((heroDef.stats.def + equippedStats.def) * defenseMultiplier) * 0.004))));
     s.hero.noDamageTimer = 0;
     s.hero.hurtFlash = 0.16; // 2-frame hurt: white flash then recoil
     s.shakeTime = Math.max(s.shakeTime, 0.2);
@@ -400,13 +400,11 @@ export default function CombatEngine({
       s.damageNumbers.push({ text: `-${dmg}`, x: s.hero.x + (Math.random() - 0.5) * 16, y: s.hero.y - 46, vy: -2, opacity: 1, color: "#ef4444", isCrit: false });
       s.particles.push(...impact(s.hero.x, s.hero.y - 26, "#ef4444", 10));
     }
-  };
-
-  const heroDefVal = () => Math.round((heroDef.stats.def + equippedStats.def) * defenseMultiplier);
+  }, [heroDef.stats.def, equippedStats.def, defenseMultiplier]);
 
   /* ---------------- boss / elite attacks ---------------- */
 
-  const doBossSpecial = (en: EnemyEntity) => {
+  const doBossSpecial = useCallback((en: EnemyEntity) => {
     const s = stateRef.current;
     const key = en.bossKey || "";
     const phaseMul = 1 + (en.bossPhase - 1) * 0.35;
@@ -457,13 +455,13 @@ export default function CombatEngine({
 
     const idx = s.bossPatternIdx++ % pool.length;
     pool[idx]();
-  };
+  }, [radialBurst, spiralBurst, aimedFan, summonMinions, say, addZones]);
 
-  const doEliteSpecial = (en: EnemyEntity) => {
+  const doEliteSpecial = useCallback((en: EnemyEntity) => {
     if (en.isRanged) aimedFan(en, 3, 5.2, Math.round(en.atk * 1.1), en.color, Math.PI / 5);
     else addZones(1, 84, 0.9, Math.round(en.atk * 1.5), "#fb923c", "ELITE SLAM", true);
     sounds.playSkill();
-  };
+  }, [aimedFan, addZones]);
 
   /* ---------------- hero actions ---------------- */
 
@@ -615,9 +613,9 @@ export default function CombatEngine({
         s.bullets.push({ x: hero.x, y: hero.y - 26, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, damage, radius: 12, color, isHero: true, type: "nova", duration: 0.65 });
       }
     }
-  }, [heroDef, skillMultiplier, gameOver, blessingOptions]);
+  }, [heroDef, skillMultiplier, gameOver, blessingOptions, damageEnemy, heroArmorMaxNow, heroAtkNow, heroMaxHpNow, say]);
 
-  const useHealthPotion = useCallback(() => {
+  const drinkHealthPotion = useCallback(() => {
     const s = stateRef.current;
     if (potionsCount <= 0 || s.hero.hp >= heroMaxHpNow() || gameOver || blessingOptions) return;
     sounds.playPotion();
@@ -628,7 +626,7 @@ export default function CombatEngine({
     s.potionsUsed += 1;
     s.damageNumbers.push({ text: `+${heal}`, x: s.hero.x, y: s.hero.y - 64, vy: -1.5, opacity: 1, color: "#22c55e", isCrit: true });
     s.particles.push(...impact(s.hero.x, s.hero.y - 28, "#22c55e", 18));
-  }, [potionsCount, gameOver, blessingOptions]);
+  }, [potionsCount, gameOver, blessingOptions, heroArmorMaxNow, heroMaxHpNow]);
 
   /* ---------------- rooms ---------------- */
 
@@ -754,7 +752,7 @@ export default function CombatEngine({
     }
     setEliteCount(s.enemies.filter((e) => e.isElite).length);
     if (room === 1) say(`ROOM 1 — CLEAR ALL ENEMIES TO OPEN THE DOOR`, 2600);
-  }, [levelDef, chapterId, levelNumber, bossDef, chapter.terrainKind, totalRooms]);
+  }, [levelDef, chapterId, levelNumber, bossDef, chapter.terrainKind, totalRooms, summonMinions, say]);
 
   const nextRoom = useCallback(() => {
     const s = stateRef.current;
@@ -772,6 +770,7 @@ export default function CombatEngine({
 
     let animId = 0;
     const s0 = stateRef.current;
+    s0.lastTime = performance.now();
     if (s0.enemies.length === 0 && !s0.battleResolved && s0.room === 1) spawnRoom(1);
 
     const down = (e: KeyboardEvent) => {
@@ -783,7 +782,7 @@ export default function CombatEngine({
       if (e.key === "j" || e.key === " " || e.key === "x") { k.attack = true; e.preventDefault(); }
       if (e.key === "k" || e.key === "c") triggerHeroSkill();
       if (e.key === "l" || e.key === "Shift") doDash();
-      if (e.key === "q" || e.key === "h") useHealthPotion();
+      if (e.key === "q" || e.key === "h") drinkHealthPotion();
       if (e.key === "m") setShowBigMap((v) => !v);
       if (e.key === "p" || e.key === "Escape") setIsPaused((v) => !v);
     };
@@ -1609,7 +1608,7 @@ export default function CombatEngine({
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [isPaused, gameOver, blessingOptions, showBigMap, settings, heroDef, chapter, chapterId, levelDef, levelNumber, bossDef, totalRooms, spawnRoom, nextRoom, triggerHeroSkill, useHealthPotion, doDash, offerBlessing, onBattleEnd]);
+  }, [isPaused, gameOver, blessingOptions, showBigMap, settings, heroDef, chapter, chapterId, levelDef, levelNumber, bossDef, totalRooms, spawnRoom, nextRoom, triggerHeroSkill, drinkHealthPotion, doDash, offerBlessing, onBattleEnd, damageEnemy, doBossSpecial, doEliteSpecial, heroAtkNow, heroMaxHpNow, heroTakeHit, aimedFan, say]);
 
   /* ---------------- touch controls ---------------- */
 
@@ -1880,7 +1879,7 @@ export default function CombatEngine({
         {/* action buttons */}
         <div className="flex items-end gap-2.5 shrink-0">
           <button
-            onClick={useHealthPotion}
+            onClick={drinkHealthPotion}
             disabled={potionsCount <= 0 || hp >= maxHpUi}
             className="btn-3d relative w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-b from-red-800 to-red-950 border-2 border-red-600/60 text-red-200 flex flex-col items-center justify-center px-3 py-3"
           >

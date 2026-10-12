@@ -1,318 +1,276 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import AuthModal from "@/components/auth/AuthModal";
-import CombatEngine from "@/components/game/CombatEngine";
 import CharacterSelectModal from "@/components/game/CharacterSelectModal";
 import ChapterMapModal from "@/components/game/ChapterMapModal";
 import UpgradesModal from "@/components/game/UpgradesModal";
 import InventoryModal from "@/components/game/InventoryModal";
 import SettingsModal from "@/components/game/SettingsModal";
-import { HEROES, HeroDef, CHAPTERS } from "@/lib/gameData";
+import LoadingScreen, { type LoadingStep } from "@/components/game/LoadingScreen";
+import useGameProgress from "@/hooks/useGameProgress";
+import { HEROES, type HeroDef, CHAPTERS, ENEMY_TYPES, type ChapterDef } from "@/lib/gameData";
 import { sounds } from "@/lib/soundEffects";
+import { preloadSpritesAsync } from "@/lib/spriteImages";
+import { requestJson, errorMessage, finishLoading, LOADING_SCREEN_DURATIONS } from "@/lib/clientApi";
+import type { GameSettings, PlayerUser, PlayerProgress, SessionResponse } from "@/lib/progress";
 import {
-  Play,
-  Swords,
-  Users,
-  Compass,
-  Sparkles,
-  Package,
-  Settings,
-  LogOut,
-  Coins,
-  Heart,
-  Shield,
-  Zap,
-  ChevronRight,
-  Trophy,
+  Play, Swords, Users, Compass, Sparkles, Package, Settings, Coins, Heart,
+  Zap, Database, LoaderCircle, AlertTriangle, RotateCcw,
 } from "lucide-react";
+
+const loadCombatEngine = () => import("@/components/game/CombatEngine");
+const CombatEngine = dynamic(loadCombatEngine, {
+  ssr: false,
+  loading: () => <LoadingScreen title="Preparing the battlefield" message="Starting the battle engine…" />,
+});
+
+interface StartupState {
+  phase: "database" | "assets" | "ready";
+  progress?: number;
+  message: string;
+  error: string | null;
+}
+const INITIAL_STARTUP: StartupState = {
+  phase: "database", message: "Connecting to the save database…", error: null,
+};
+interface BattleLoadingState {
+  progress: number;
+  bundleReady: boolean;
+  assetsReady: boolean;
+  error: string | null;
+}
+interface BattleResult {
+  victory: boolean;
+  rewardCoins: number;
+  rewardXp: number;
+  potionsUsed: number;
+  bossDefeated?: boolean;
+  dropItem?: ChapterDef["completionReward"]["item"];
+}
 
 export default function GameRootPage() {
   const [authState, setAuthState] = useState<{
     loaded: boolean;
     authenticated: boolean;
-    user: { id: number; username: string } | null;
-  }>({
-    loaded: false,
-    authenticated: false,
-    user: null,
-  });
-
-  // Game Progress State
-  const [progress, setProgress] = useState<any>(null);
-
-  // Active Screen / Modals
-  const [currentMode, setCurrentMode] = useState<"menu" | "combat">("menu");
+    user: PlayerUser | null;
+  }>({ loaded: false, authenticated: false, user: null });
+  const { progress, saveStatus, saveProgress, setSessionProgress, retrySave, flushSaves } = useGameProgress();
+  const [startup, setStartup] = useState<StartupState>(INITIAL_STARTUP);
+  const [startupAttempt, setStartupAttempt] = useState(0);
+  const [currentMode, setCurrentMode] = useState<"menu" | "loading-combat" | "combat">("menu");
   const [combatStage, setCombatStage] = useState<{ chapterId: number; levelNumber: number } | null>(null);
+  const [battleLoading, setBattleLoading] = useState<BattleLoadingState>({ progress: 0, bundleReady: false, assetsReady: false, error: null });
+  const combatController = useRef<AbortController | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [showReauthenticate, setShowReauthenticate] = useState(false);
 
-  // Modals
   const [showHeroesModal, setShowHeroesModal] = useState(false);
   const [showChaptersModal, setShowChaptersModal] = useState(false);
   const [showUpgradesModal, setShowUpgradesModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Load Session on mount
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
     async function checkSession() {
+      const startedAt = performance.now();
       try {
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        if (data.authenticated && data.user) {
-          setAuthState({ loaded: true, authenticated: true, user: data.user });
-          setProgress(data.progress);
-        } else {
-          setAuthState({ loaded: true, authenticated: false, user: null });
-        }
-      } catch (err) {
-        setAuthState({ loaded: true, authenticated: false, user: null });
+        const data = await requestJson<SessionResponse>("/api/auth/me", { signal: controller.signal });
+        if (data.authenticated && (!data.user || !data.progress)) throw new Error("Your saved adventure could not be restored. Please try again.");
+        if (!active) return;
+        setStartup({ phase: "assets", progress: 70, message: "Loading heroes and realm artwork…", error: null });
+        await preloadSpritesAsync([
+          ...Object.values(HEROES).map((hero) => hero.image),
+          ...CHAPTERS.map((chapter) => chapter.boss.image),
+        ], (completed, total) => {
+          if (active) setStartup((previous) => ({ ...previous, progress: 70 + 30 * completed / Math.max(1, total) }));
+        }, controller.signal);
+        if (!active) return;
+        setStartup({ phase: "ready", progress: 100, message: "The realm is ready. Your journey awaits.", error: null });
+        await finishLoading(startedAt, LOADING_SCREEN_DURATIONS.startup, controller.signal);
+        if (!active) return;
+        setSessionProgress(data.authenticated ? data.progress! : null);
+        setAuthState({ loaded: true, authenticated: data.authenticated, user: data.user || null });
+      } catch (error) {
+        if (active) setStartup((previous) => ({ ...previous, error: errorMessage(error, "The realm could not be loaded. Please try again.") }));
       }
     }
-    checkSession();
-  }, []);
+    void checkSession();
+    return () => { active = false; controller.abort(); };
+  }, [startupAttempt, setSessionProgress]);
 
-  // Sync / Save progress to backend
-  const saveProgressToDb = async (newProgress: any) => {
-    setProgress(newProgress);
-    try {
-      await fetch("/api/game/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newProgress),
-      });
-    } catch (err) {
-      console.error("Failed to sync progress to server:", err);
-    }
-  };
+  useEffect(() => () => combatController.current?.abort(), []);
 
-  const handleAuthSuccess = (user: { id: number; username: string }, userProgress: any) => {
+  const handleAuthSuccess = (user: PlayerUser, userProgress: PlayerProgress) => {
     setAuthState({ loaded: true, authenticated: true, user });
-    setProgress(userProgress);
+    setSessionProgress(userProgress);
     setCurrentMode("menu");
+    setActionError(null);
   };
 
   const handleLogout = async () => {
     sounds.playClick();
-    await fetch("/api/auth/logout", { method: "POST" });
-    setAuthState({ loaded: true, authenticated: false, user: null });
-    setProgress(null);
-    setCurrentMode("menu");
+    // Do not discard unsaved edits just because the player clicked sign out.
+    if (!(await flushSaves())) { setShowSettingsModal(false); return; }
+    try {
+      await requestJson("/api/auth/logout", { method: "POST" });
+      setAuthState({ loaded: true, authenticated: false, user: null });
+      setSessionProgress(null);
+      setCurrentMode("menu");
+      setShowSettingsModal(false);
+      setActionError(null);
+    } catch (error) {
+      setShowSettingsModal(false);
+      setActionError(errorMessage(error, "Could not sign out. Please try again."));
+    }
   };
 
-  // Launch combat level
-  const handleStartLevel = (chapterId: number, levelNumber: number) => {
+  // Load the engine and decode stage artwork BEFORE the simulation starts.
+  const handleStartLevel = async (chapterId: number, levelNumber: number) => {
+    if (!progress) return;
+    combatController.current?.abort();
+    const controller = new AbortController();
+    combatController.current = controller;
+    const startedAt = performance.now();
+    const chapter = CHAPTERS.find((item) => item.id === chapterId) || CHAPTERS[0];
+    const level = chapter.levels.find((item) => item.levelNumber === levelNumber) || chapter.levels[0];
     setShowChaptersModal(false);
     setCombatStage({ chapterId, levelNumber });
-    setCurrentMode("combat");
+    setBattleLoading({ progress: 0, bundleReady: false, assetsReady: false, error: null });
+    setCurrentMode("loading-combat");
+    let bundleReady = false;
+    let artworkProgress = 0;
+    const report = () => {
+      if (!controller.signal.aborted) setBattleLoading((previous) => ({
+        ...previous,
+        progress: (bundleReady ? 25 : 0) + 75 * artworkProgress,
+        bundleReady,
+        assetsReady: artworkProgress === 1,
+      }));
+    };
+    try {
+      await Promise.all([
+        loadCombatEngine().then(() => { bundleReady = true; report(); }),
+        preloadSpritesAsync([
+          (HEROES[progress.selectedHeroId] || HEROES.aiden).image,
+          chapter.boss.image,
+          ...level.enemyTypes.map((key) => ENEMY_TYPES[key]?.image),
+          ...level.eliteTypes.map((key) => ENEMY_TYPES[key]?.image),
+        ], (completed, total) => { artworkProgress = total ? completed / total : 1; report(); }, controller.signal),
+      ]);
+      await finishLoading(startedAt, LOADING_SCREEN_DURATIONS.battle, controller.signal);
+      if (!controller.signal.aborted) setCurrentMode("combat");
+    } catch (error) {
+      if (!controller.signal.aborted) setBattleLoading((previous) => ({ ...previous, error: errorMessage(error, "The battlefield could not be loaded.") }));
+    }
   };
 
-  // Quick continue
   const handleContinueAdventure = () => {
     sounds.playClick();
-    const ch = progress?.highestChapterUnlocked || 1;
-    const lvl = progress?.highestLevelUnlocked || 1;
-    handleStartLevel(ch, lvl);
+    void handleStartLevel(progress?.highestChapterUnlocked || 1, progress?.highestLevelUnlocked || 1);
   };
 
-  // After battle finishes
-  const handleBattleEnd = async (result: {
-    victory: boolean;
-    rewardCoins: number;
-    rewardXp: number;
-    potionsUsed: number;
-    bossDefeated?: boolean;
-    dropItem?: any;
-  }) => {
-    if (!combatStage || !progress) {
-      setCurrentMode("menu");
-      return;
-    }
-
-    const stageKey = `${combatStage.chapterId}-${combatStage.levelNumber}`;
-    const newCoins = progress.coins + result.rewardCoins;
-    const newXp = progress.xp + result.rewardXp;
-    const newPotions = Math.max(0, progress.healthPotions - result.potionsUsed);
-
-    // Calculate player rank
-    const newLevel = 1 + Math.floor(newXp / 500);
-
-    const completed = new Set(progress.completedLevels || []);
-    let newHighestChapter = progress.highestChapterUnlocked;
-    let newHighestLevel = progress.highestLevelUnlocked;
-
-    if (result.victory) {
-      completed.add(stageKey);
-
-      // Unlock next level or next chapter
-      if (combatStage.levelNumber < 5) {
-        if (combatStage.levelNumber + 1 > newHighestLevel) {
-          newHighestLevel = combatStage.levelNumber + 1;
-        }
-      } else if (result.bossDefeated) {
-        // Boss killed: unlock next chapter!
-        if (combatStage.chapterId < 5) {
-          newHighestChapter = Math.max(newHighestChapter, combatStage.chapterId + 1);
-          newHighestLevel = 1;
+  const handleBattleEnd = async (result: BattleResult) => {
+    if (!combatStage) { setCurrentMode("menu"); return; }
+    await saveProgress((previous) => {
+      const stageKey = `${combatStage.chapterId}-${combatStage.levelNumber}`;
+      const completed = new Set(previous.completedLevels);
+      let highestChapterUnlocked = previous.highestChapterUnlocked;
+      let highestLevelUnlocked = previous.highestLevelUnlocked;
+      if (result.victory) {
+        completed.add(stageKey);
+        // Replaying an earlier stage must not move the current chapter frontier.
+        if (combatStage.chapterId === highestChapterUnlocked && combatStage.levelNumber === highestLevelUnlocked) {
+          if (combatStage.levelNumber < 5) highestLevelUnlocked += 1;
+          else if (result.bossDefeated && combatStage.chapterId < 5) { highestChapterUnlocked += 1; highestLevelUnlocked = 1; }
         }
       }
-    }
-
-    // Handle Item Drops
-    const updatedInventory = [...(progress.inventory || [])];
-    if (result.dropItem) {
-      const alreadyHas = updatedInventory.some((it: any) => it.itemId === result.dropItem.id);
-      if (!alreadyHas) {
-        updatedInventory.push({
-          id: `item_${Date.now()}`,
-          itemId: result.dropItem.id,
-          name: result.dropItem.name,
-          type: result.dropItem.type,
-          rarity: result.dropItem.rarity,
-          atkBonus: result.dropItem.atk,
-          hpBonus: result.dropItem.hp,
-          defBonus: result.dropItem.def,
-          critBonus: result.dropItem.crit,
-          equipped: false,
+      const inventory = [...previous.inventory];
+      const item = result.dropItem;
+      if (item && !inventory.some((owned) => owned.itemId === item.id)) {
+        inventory.push({
+          id: `item_${Date.now()}`, itemId: item.id, name: item.name, type: item.type, rarity: item.rarity,
+          atkBonus: item.atk, hpBonus: item.hp, defBonus: item.def, critBonus: item.crit, equipped: false,
           description: `Trophy won from defeating Chapter ${combatStage.chapterId} Boss.`,
         });
       }
-    }
-
-    const updated = {
-      ...progress,
-      coins: newCoins,
-      xp: newXp,
-      level: newLevel,
-      healthPotions: newPotions,
-      completedLevels: Array.from(completed),
-      highestChapterUnlocked: newHighestChapter,
-      highestLevelUnlocked: newHighestLevel,
-      inventory: updatedInventory,
-    };
-
-    await saveProgressToDb(updated);
+      const xp = previous.xp + result.rewardXp;
+      return {
+        ...previous,
+        coins: previous.coins + result.rewardCoins,
+        xp,
+        level: 1 + Math.floor(xp / 500),
+        healthPotions: Math.max(0, previous.healthPotions - result.potionsUsed),
+        completedLevels: Array.from(completed),
+        highestChapterUnlocked, highestLevelUnlocked, inventory,
+      };
+    });
     setCurrentMode("menu");
   };
 
-  // Hero Selection & Unlock
-  const handleSelectHero = async (heroId: string) => {
-    const updated = { ...progress, selectedHeroId: heroId };
-    await saveProgressToDb(updated);
-  };
+  const handleSelectHero = (heroId: string) => saveProgress((previous) => ({ ...previous, selectedHeroId: heroId }));
+  const handleUnlockHero = (heroId: string, cost: number) => saveProgress((previous) => {
+    if (previous.unlockedHeroes.includes(heroId) || previous.coins < cost) return previous;
+    return { ...previous, coins: previous.coins - cost, unlockedHeroes: [...previous.unlockedHeroes, heroId], selectedHeroId: heroId };
+  });
+  const handleUpgradeStat = (statKey: "attackLevel" | "healthLevel" | "defenseLevel" | "skillLevel", cost: number) => saveProgress((previous) => {
+    if (previous.coins < cost) return previous;
+    return { ...previous, coins: previous.coins - cost, statUpgrades: { ...previous.statUpgrades, [statKey]: previous.statUpgrades[statKey] + 1 } };
+  });
+  const handleEquipItem = (itemId: string, type: string) => saveProgress((previous) => ({
+    ...previous,
+    inventory: previous.inventory.map((item) => item.type === type ? { ...item, equipped: item.id === itemId ? !item.equipped : false } : item),
+  }));
+  const handleBuyPotion = (cost: number) => saveProgress((previous) => previous.coins < cost ? previous : {
+    ...previous, coins: previous.coins - cost, healthPotions: previous.healthPotions + 1,
+  });
+  const handleUpdateSettings = (settings: GameSettings) => saveProgress((previous) => ({ ...previous, settings }));
 
-  const handleUnlockHero = async (heroId: string, cost: number) => {
-    if (progress.coins >= cost) {
-      const updatedUnlocked = [...progress.unlockedHeroes, heroId];
-      const updated = {
-        ...progress,
-        coins: progress.coins - cost,
-        unlockedHeroes: updatedUnlocked,
-        selectedHeroId: heroId,
-      };
-      await saveProgressToDb(updated);
-    }
-  };
+  const getEquippedStats = () => (progress?.inventory || []).reduce((stats, item) => item.equipped ? {
+    atk: stats.atk + item.atkBonus, hp: stats.hp + item.hpBonus,
+    def: stats.def + item.defBonus, crit: stats.crit + item.critBonus,
+  } : stats, { atk: 0, hp: 0, def: 0, crit: 0 });
 
-  // Stat Upgrades
-  const handleUpgradeStat = async (
-    statKey: "attackLevel" | "healthLevel" | "defenseLevel" | "skillLevel",
-    cost: number
-  ) => {
-    if (progress.coins >= cost) {
-      const updatedStats = {
-        ...progress.statUpgrades,
-        [statKey]: progress.statUpgrades[statKey] + 1,
-      };
-      const updated = {
-        ...progress,
-        coins: progress.coins - cost,
-        statUpgrades: updatedStats,
-      };
-      await saveProgressToDb(updated);
-    }
-  };
-
-  // Equip Item
-  const handleEquipItem = async (itemId: string, type: string) => {
-    const updatedInventory = (progress.inventory || []).map((item: any) => {
-      if (item.type === type) {
-        return { ...item, equipped: item.id === itemId ? !item.equipped : false };
-      }
-      return item;
-    });
-
-    const updated = { ...progress, inventory: updatedInventory };
-    await saveProgressToDb(updated);
-  };
-
-  // Buy Potion
-  const handleBuyPotion = async (cost: number) => {
-    if (progress.coins >= cost) {
-      const updated = {
-        ...progress,
-        coins: progress.coins - cost,
-        healthPotions: progress.healthPotions + 1,
-      };
-      await saveProgressToDb(updated);
-    }
-  };
-
-  // Settings update
-  const handleUpdateSettings = async (newSettings: any) => {
-    const updated = { ...progress, settings: newSettings };
-    await saveProgressToDb(updated);
-  };
-
-  // Compute Equipped Item Bonus
-  const getEquippedStats = () => {
-    let atk = 0;
-    let hp = 0;
-    let def = 0;
-    let crit = 0;
-    (progress?.inventory || []).forEach((item: any) => {
-      if (item.equipped) {
-        atk += item.atkBonus || 0;
-        hp += item.hpBonus || 0;
-        def += item.defBonus || 0;
-        crit += item.critBonus || 0;
-      }
-    });
-    return { atk, hp, def, crit };
-  };
-
-  // Loading state
   if (!authState.loaded) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white font-sans">
-        <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
-        <p className="text-sm text-neutral-400 font-semibold tracking-wide">
-          Connecting to Undead Slayer Realm...
-        </p>
-      </div>
-    );
+    const steps: LoadingStep[] = [
+      { label: "Save database", state: startup.phase === "database" ? "active" : "complete" },
+      { label: "Your journey", state: startup.phase === "database" ? "pending" : "complete" },
+      { label: "Realm artwork", state: startup.phase === "ready" ? "complete" : startup.phase === "assets" ? "active" : "pending" },
+    ];
+    return <LoadingScreen progress={startup.progress} message={startup.message} steps={steps} error={startup.error}
+      onRetry={() => { setStartup(INITIAL_STARTUP); setStartupAttempt((attempt) => attempt + 1); }} />;
   }
 
-  // Not authenticated: Show Login & Register Screen
-  if (!authState.authenticated || !progress) {
-    return <AuthModal onSuccess={handleAuthSuccess} />;
+  if (!authState.authenticated || !progress) return <AuthModal onSuccess={handleAuthSuccess} />;
+
+  if (showReauthenticate) return <AuthModal initialUsername={authState.user?.username} onCancel={() => setShowReauthenticate(false)} onSuccess={(user) => {
+    if (user.id !== authState.user?.id) throw new Error("Please sign in to the same account to keep your unsaved progress.");
+    setAuthState({ loaded: true, authenticated: true, user });
+    setShowReauthenticate(false);
+    void retrySave();
+  }} />;
+
+  if (currentMode === "loading-combat" && combatStage) {
+    const chapter = CHAPTERS.find((item) => item.id === combatStage.chapterId) || CHAPTERS[0];
+    const level = chapter.levels.find((item) => item.levelNumber === combatStage.levelNumber) || chapter.levels[0];
+    return <LoadingScreen title={`Entering ${level.title}`} progress={battleLoading.progress}
+      message={battleLoading.progress === 100 ? "Your hero is ready. Opening the battlefield…" : "Preparing the battle engine and stage artwork…"}
+      steps={[
+        { label: "Battle engine", state: battleLoading.bundleReady ? "complete" : "active" },
+        { label: "Stage artwork", state: battleLoading.assetsReady ? "complete" : "active" },
+      ]} error={battleLoading.error}
+      tip={`${chapter.subtitle}: ${chapter.description}`}
+      onRetry={() => void handleStartLevel(combatStage.chapterId, combatStage.levelNumber)}
+      onCancel={() => { combatController.current?.abort(); setCurrentMode("menu"); }} />;
   }
 
-  // In-game combat mode
-  if (currentMode === "combat" && combatStage) {
-    return (
-      <CombatEngine
-        heroId={progress.selectedHeroId || "aiden"}
-        chapterId={combatStage.chapterId}
-        levelNumber={combatStage.levelNumber}
-        statUpgrades={progress.statUpgrades}
-        equippedStats={getEquippedStats()}
-        healthPotions={progress.healthPotions}
-        settings={progress.settings}
-        onBattleEnd={handleBattleEnd}
-        onExit={() => setCurrentMode("menu")}
-      />
-    );
-  }
+  if (currentMode === "combat" && combatStage) return <CombatEngine
+    heroId={progress.selectedHeroId || "aiden"} chapterId={combatStage.chapterId} levelNumber={combatStage.levelNumber}
+    statUpgrades={progress.statUpgrades} equippedStats={getEquippedStats()} healthPotions={progress.healthPotions}
+    settings={progress.settings} onBattleEnd={handleBattleEnd} onExit={() => setCurrentMode("menu")} />;
 
   // Active Hero Definition
   const activeHero: HeroDef = HEROES[progress.selectedHeroId] || HEROES.aiden;
@@ -326,7 +284,7 @@ export default function GameRootPage() {
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main RPG Navigation Bar */}
-      <header className="relative z-20 border-b border-white/10 bg-neutral-950/80 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between gap-3">
+      <header className="relative z-20 border-b border-white/10 bg-neutral-950/80 backdrop-blur-md px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo */}
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-600 to-rose-600 flex items-center justify-center text-xl shadow-lg border border-amber-400/40">
@@ -344,6 +302,12 @@ export default function GameRootPage() {
 
         {/* Currency & Player Summary Bar */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <div role="status" aria-live="polite" data-testid="save-status"
+            title={saveStatus.state === "saving" ? "Saving progress to the database" : saveStatus.state === "error" ? "Progress has not been saved" : "Progress saved to the database"}
+            className={`flex items-center gap-1.5 text-[10px] ${saveStatus.state === "error" ? "text-amber-400" : saveStatus.state === "saving" ? "text-neutral-400" : "text-emerald-400"}`}>
+            {saveStatus.state === "saving" ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : saveStatus.state === "error" ? <AlertTriangle className="w-3.5 h-3.5" /> : <Database className="w-3.5 h-3.5" />}
+            <span className="hidden lg:inline">{saveStatus.state === "saving" ? "Saving…" : saveStatus.state === "error" ? "Unsaved changes" : "Progress saved"}</span>
+          </div>
           <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-red-400 text-xs font-bold font-mono">
             <Heart className="w-4 h-4 fill-current" />
             <span>x{progress.healthPotions}</span>
@@ -373,6 +337,23 @@ export default function GameRootPage() {
           </button>
         </div>
       </header>
+
+      {(saveStatus.state === "error" || actionError) && (
+        <div role="alert" className="fixed bottom-4 left-4 right-4 z-[60] mx-auto max-w-xl rounded-2xl border border-amber-700/60 bg-neutral-900 p-4 shadow-2xl flex flex-wrap items-center gap-3">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400" />
+          <div className="flex-1 min-w-0 text-xs">
+            <p className="font-bold text-amber-300">{saveStatus.state === "error" ? "Progress not saved" : "Request could not be completed"}</p>
+            <p className="mt-1 text-neutral-300">{saveStatus.state === "error" ? saveStatus.message : actionError}</p>
+            {saveStatus.state === "error" && <p className="mt-1 text-neutral-400">Keep this page open until your save succeeds.</p>}
+          </div>
+          {saveStatus.state === "error" ? (
+            <button type="button" onClick={() => saveStatus.needsAuth ? setShowReauthenticate(true) : void retrySave()}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500/20">
+              <RotateCcw className="w-3.5 h-3.5" /> {saveStatus.needsAuth ? "Sign in to save" : "Retry save"}
+            </button>
+          ) : <button type="button" onClick={() => setActionError(null)} className="text-xs text-neutral-400 hover:text-white">Dismiss</button>}
+        </div>
+      )}
 
       {/* Main Sanctuary Dashboard */}
       <main className="flex-1 relative z-10 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col justify-between gap-8">

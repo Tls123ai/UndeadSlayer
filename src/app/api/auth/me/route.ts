@@ -1,50 +1,28 @@
-import { NextResponse } from "next/server";
-import { getSessionUser, clearSession } from "@/lib/session";
-import { db } from "@/db";
-import { gameProgress, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { ensureSchema } from "@/db/ensureSchema";
-import { isDatabaseConfigured } from "@/db";
+import { sql } from "drizzle-orm";
+import { getDatabase, getDatabaseMode } from "@/db";
+import { getOrCreateProgress } from "@/db/progress";
+import { getSessionUser } from "@/lib/session";
+import { apiError, json } from "@/lib/api";
 
-const DB_MISSING_RESPONSE = {
-  error:
-    "Database is not configured. Set the DATABASE_URL environment variable and redeploy.",
-};
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    await ensureSchema();
-    if (!isDatabaseConfigured()) {
-      return NextResponse.json(DB_MISSING_RESPONSE, { status: 503 });
-    }
+    // Even an anonymous startup checks the real database before enabling accounts.
+    const db = await getDatabase();
+    await db.execute(sql`select 1`);
+    const database = getDatabaseMode();
     const session = await getSessionUser();
-    if (!session) {
-      return NextResponse.json({ authenticated: false }, { status: 200 });
-    }
-
-    const [user] = await db
-      .select({ id: users.id, username: users.username })
-      .from(users)
-      .where(eq(users.id, session.userId))
-      .limit(1);
-
-    if (!user) {
-      await clearSession();
-      return NextResponse.json({ authenticated: false }, { status: 200 });
-    }
-
-    const [progress] = await db
-      .select()
-      .from(gameProgress)
-      .where(eq(gameProgress.userId, user.id))
-      .limit(1);
-
-    return NextResponse.json({
+    if (!session) return json({ authenticated: false, database });
+    const progress = await getOrCreateProgress(db, session.userId);
+    return json({
       authenticated: true,
-      user,
+      user: { id: session.userId, username: session.username },
       progress,
+      database,
     });
-  } catch (err: any) {
-    return NextResponse.json({ authenticated: false, error: err.message }, { status: 500 });
+  } catch (error) {
+    return apiError(error, "session");
   }
 }
