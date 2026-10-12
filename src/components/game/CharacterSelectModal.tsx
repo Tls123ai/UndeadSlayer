@@ -1,12 +1,13 @@
 "use client";
 
+import { PixelGlyph } from "@/components/game/PixelIcons";
 import React, { useState, useRef, useEffect } from "react";
 import { HEROES, HERO_CLASS_LIST } from "@/lib/gameData";
 import type { SpriteKit } from "@/lib/sprites";
 import { drawUnit } from "@/lib/sprites";
 import { getSpriteImage, HERO_CROP } from "@/lib/spriteImages";
 import { sounds } from "@/lib/soundEffects";
-import { Lock, CheckCircle2, Coins, Users, Sparkles } from "lucide-react";
+import { Lock, CheckCircle2, Coins, Users, Sparkles } from "@/components/game/PixelIcons";
 
 const BUILD_LABEL: Record<string, string> = {
   robe: "Robed caster (flowing robes, wide sleeves)",
@@ -41,16 +42,17 @@ function SpritePreview({ kit, accent, image }: { kit: SpriteKit; accent: string;
       const ctx = cv.getContext("2d");
       if (!ctx) return;
       t += 0.028;
-      ctx.clearRect(0, 0, cv.width, cv.height);
-      const g = ctx.createRadialGradient(cv.width / 2, cv.height - 24, 4, cv.width / 2, cv.height - 24, 62);
-      g.addColorStop(0, `${accent}44`);
-      g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, 150, 170);
+      ctx.fillStyle = "#151b2a";
+      ctx.fillRect(0, 0, 150, 170);
+      ctx.fillStyle = accent;
+      ctx.fillRect(30, 155, 90, 2);
       const atkCycle = Math.sin(t * 0.9);
       drawUnit(ctx, kit, {
-        x: cv.width / 2,
-        y: cv.height - 14,
+        x: 75,
+        y: 156,
         facingLeft: false,
         frame: t * 3.4,
         moving: false,
@@ -60,12 +62,12 @@ function SpritePreview({ kit, accent, image }: { kit: SpriteKit; accent: string;
         portrait: getSpriteImage(image),
         portraitCrop: HERO_CROP,
       });
-      raf = requestAnimationFrame(draw);
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) raf = requestAnimationFrame(draw);
     };
-    raf = requestAnimationFrame(draw);
+    draw();
     return () => cancelAnimationFrame(raf);
   }, [kit, accent, image]);
-  return <canvas ref={ref} width={150} height={170} className="w-[150px] h-[170px]" />;
+  return <canvas ref={ref} width={75} height={85} role="img" aria-label="Pixel-art battle model" className="w-[150px] h-[170px]" />;
 }
 
 interface CharacterSelectModalProps {
@@ -103,10 +105,10 @@ export default function CharacterSelectModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="Class selection" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
       <div className="panel rounded-3xl w-full max-w-6xl max-h-[93vh] flex flex-col overflow-hidden border-white/10">
         {/* header */}
-        <div className="px-5 py-4 border-b border-white/10 bg-black/30 flex items-center justify-between gap-3">
+        <div className="pixel-modal-header px-5 py-4 border-b border-white/10 bg-black/30 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide flex items-center gap-2">
               <Users className="w-5 h-5 text-amber-400" /> Class Selection — 10 Hero Classes
@@ -123,7 +125,7 @@ export default function CharacterSelectModal({
               onClick={onClose}
               className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 text-xs font-semibold transition"
             >
-              ✕ Close
+              Close
             </button>
           </div>
         </div>
@@ -161,7 +163,7 @@ export default function CharacterSelectModal({
                       )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pt-4 pb-1 text-center">
                         <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: h.accentColor }}>
-                          {h.classIcon} {h.classType}
+                          <PixelGlyph value={h.classIcon} size={16} /> {h.classType}
                         </span>
                       </div>
                     </div>
@@ -182,7 +184,7 @@ export default function CharacterSelectModal({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {HERO_CLASS_LIST.map((c) => (
                   <div key={c.classType} className="flex items-center gap-2 text-[10px] bg-white/5 border border-white/10 rounded-xl px-2 py-1.5">
-                    <span className="text-sm">{c.icon}</span>
+                    <PixelGlyph value={c.icon} size={20} />
                     <span className="text-white font-bold">{c.classType}</span>
                     <span className="text-neutral-500 truncate">— {c.blurb}</span>
                   </div>
@@ -213,7 +215,7 @@ export default function CharacterSelectModal({
                 className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full mt-1.5 border"
                 style={{ backgroundColor: `${hero.color}25`, color: hero.accentColor, borderColor: hero.accentColor }}
               >
-                {hero.classIcon} {hero.classType}
+                <PixelGlyph value={hero.classIcon} size={16} /> {hero.classType}
               </div>
               <div className="text-[11px] text-amber-300 mt-2 font-semibold">{hero.title}</div>
               <div className="text-[11px] text-neutral-400 mt-1.5 max-w-xs leading-relaxed">{hero.lore}</div>
@@ -222,11 +224,11 @@ export default function CharacterSelectModal({
             <div className="grid grid-cols-2 gap-2.5 mb-3">
               <div className="rounded-2xl border border-white/10 bg-black/30 p-2.5">
                 <div className="text-[9px] text-neutral-400 uppercase font-semibold">Weapon</div>
-                <div className="text-[11px] text-white mt-0.5 font-semibold">🗡️ {hero.weapon}</div>
+                <div className="text-[11px] text-white mt-0.5 font-semibold"><PixelGlyph value="🗡️" size={16} /> {hero.weapon}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/30 p-2.5">
                 <div className="text-[9px] text-neutral-400 uppercase font-semibold">Combat Role</div>
-                <div className="text-[11px] text-white mt-0.5 font-semibold">🛡️ {hero.role}</div>
+                <div className="text-[11px] text-white mt-0.5 font-semibold"><PixelGlyph value="🛡️" size={16} /> {hero.role}</div>
               </div>
             </div>
 
@@ -270,7 +272,7 @@ export default function CharacterSelectModal({
             </div>
 
             <div className="rounded-2xl border border-purple-700/50 bg-purple-950/30 p-3.5 mb-4 flex items-start gap-3">
-              <div className="text-2xl">{hero.skill.icon}</div>
+              <PixelGlyph value={hero.skill.icon} size={28} />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-bold text-purple-200">{hero.skill.name}</span>

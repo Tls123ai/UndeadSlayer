@@ -2,7 +2,9 @@
 
 import React, { useState } from "react";
 import { sounds } from "@/lib/soundEffects";
-import { Eye, EyeOff, ShieldAlert, LogIn, UserPlus, Database } from "lucide-react";
+import { Eye, EyeOff, ShieldAlert, LogIn, UserPlus, Database } from "@/components/game/PixelIcons";
+import PixelScene from "@/components/game/PixelScene";
+import { Swords } from "@/components/game/PixelIcons";
 import LoadingScreen from "@/components/game/LoadingScreen";
 import { requestJson, errorMessage, finishLoading, LOADING_SCREEN_DURATIONS } from "@/lib/clientApi";
 import type { AuthResponse, PlayerUser, PlayerProgress } from "@/lib/progress";
@@ -76,20 +78,18 @@ export default function AuthModal({ onSuccess, initialUsername, onCancel }: Auth
 
   return (
     <div className="min-h-screen w-full bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Visual Effects */}
-      <div className="absolute inset-0 bg-radial-gradient from-amber-950/20 via-neutral-950 to-neutral-950 pointer-events-none" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+      <PixelScene />
 
       {/* Main Auth Card */}
-      <div className="w-full max-w-md bg-neutral-900/90 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-xl">
+      <div className="pixel-auth-card w-full max-w-md bg-neutral-900/90 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-xl">
         {/* Game Title & Lore Logo */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl mb-3 shadow-inner">
-            <span className="text-4xl">⚔️</span>
+            <Swords size={44} className="text-amber-400" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-400 to-purple-400 uppercase tracking-wider">
-            UNDEAD SLAYER: CHRONICLES
+          <h1 className="pixel-auth-title">
+            <span>UNDEAD SLAYER</span>
+            <small>CHRONICLES</small>
           </h1>
           <p className="text-xs text-neutral-400 mt-1">
             2D Action RPG • 10 Hero Classes • 5 Chapters • 25 Stages

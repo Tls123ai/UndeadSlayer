@@ -1,7 +1,9 @@
 "use client";
 
+import { PixelGlyph } from "@/components/game/PixelIcons";
 import React, { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import PixelScene from "@/components/game/PixelScene";
 import AuthModal from "@/components/auth/AuthModal";
 import CharacterSelectModal from "@/components/game/CharacterSelectModal";
 import ChapterMapModal from "@/components/game/ChapterMapModal";
@@ -18,7 +20,7 @@ import type { GameSettings, PlayerUser, PlayerProgress, SessionResponse } from "
 import {
   Play, Swords, Users, Compass, Sparkles, Package, Settings, Coins, Heart,
   Zap, Database, LoaderCircle, AlertTriangle, RotateCcw,
-} from "lucide-react";
+} from "@/components/game/PixelIcons";
 
 const loadCombatEngine = () => import("@/components/game/CombatEngine");
 const CombatEngine = dynamic(loadCombatEngine, {
@@ -278,20 +280,17 @@ export default function GameRootPage() {
 
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-white font-sans relative overflow-x-hidden flex flex-col">
-      {/* Ambient fantasy background */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,rgba(245,158,11,0.10),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(124,58,237,0.12),transparent_55%)]" />
-      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+      <PixelScene />
 
       {/* Main RPG Navigation Bar */}
       <header className="relative z-20 border-b border-white/10 bg-neutral-950/80 backdrop-blur-md px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
         {/* Brand Logo */}
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-600 to-rose-600 flex items-center justify-center text-xl shadow-lg border border-amber-400/40">
-            ⚔️
+            <Swords size={26} />
           </div>
           <div>
-            <div className="text-base sm:text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-300 to-purple-400 uppercase">
+            <div className="game-brand text-base sm:text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-300 to-purple-400 uppercase">
               UNDEAD SLAYER
             </div>
             <div className="text-[10px] text-neutral-400 font-semibold tracking-wider uppercase">
@@ -361,7 +360,7 @@ export default function GameRootPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Active Champion Spotlight Card */}
           <div
-            className="lg:col-span-7 rounded-3xl border p-5 sm:p-7 relative overflow-hidden shadow-2xl flex flex-col sm:flex-row items-center gap-6"
+            className="pixel-panel lg:col-span-7 rounded-3xl border p-5 sm:p-7 relative overflow-hidden shadow-2xl flex flex-col sm:flex-row items-center gap-6"
             style={{
               borderColor: `${activeHero.accentColor}55`,
               background: `linear-gradient(135deg, ${activeHero.color}22 0%, rgba(10,10,15,0.95) 70%)`,
@@ -388,7 +387,7 @@ export default function GameRootPage() {
                   className="text-[10px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-wide"
                   style={{ backgroundColor: `${activeHero.color}25`, color: activeHero.accentColor, borderColor: activeHero.accentColor }}
                 >
-                  {activeHero.classIcon} {activeHero.classType}
+                  <PixelGlyph value={activeHero.classIcon} size={16} /> {activeHero.classType}
                 </span>
               </div>
 
@@ -411,7 +410,7 @@ export default function GameRootPage() {
 
               {/* Special Skill Banner */}
               <div className="flex items-center gap-2.5 bg-purple-950/30 border border-purple-700/40 px-3 py-2 rounded-xl text-xs">
-                <span className="text-lg">{activeHero.skill.icon}</span>
+                <PixelGlyph value={activeHero.skill.icon} size={24} />
                 <span className="font-bold text-purple-200">{activeHero.skill.name}:</span>
                 <span className="text-neutral-400 truncate max-w-xs">{activeHero.skill.description}</span>
               </div>
@@ -419,7 +418,7 @@ export default function GameRootPage() {
           </div>
 
           {/* Current Campaign Progress Banner */}
-          <div className="lg:col-span-5 bg-white/[0.04] border border-white/10 rounded-3xl p-5 sm:p-7 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+          <div className="pixel-panel lg:col-span-5 bg-white/[0.04] border border-white/10 rounded-3xl p-5 sm:p-7 flex flex-col justify-between shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/5 rounded-full blur-2xl" />
             <div className="relative">
               <div className="flex items-center justify-between mb-2">

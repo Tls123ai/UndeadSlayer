@@ -1,4 +1,6 @@
-import { Check, Circle, Database, LoaderCircle, RotateCcw, Swords, UserRound, WandSparkles } from "lucide-react";
+import { Check, Circle, Database, LoaderCircle, RotateCcw, Swords, UserRound, WandSparkles } from "@/components/game/PixelIcons";
+
+import PixelScene from "./PixelScene";
 
 export interface LoadingStep {
   label: string;
@@ -32,8 +34,7 @@ export default function LoadingScreen({
 
   return (
     <main className="realm-loader" aria-busy={!error} data-testid="loading-screen">
-      <div className="realm-loader__sky" aria-hidden="true" />
-      <div className="realm-loader__mountains" aria-hidden="true" />
+      <PixelScene />
       <div className="realm-loader__embers" aria-hidden="true">
         {Array.from({ length: 8 }, (_, i) => (
           <span key={i} style={{ left: `${12 + i * 11}%`, animationDelay: `${i * -1.7}s`, animationDuration: `${7 + i % 3}s` }} />

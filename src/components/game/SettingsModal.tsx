@@ -3,7 +3,7 @@
 import React from "react";
 import { sounds } from "@/lib/soundEffects";
 import type { GameSettings } from "@/lib/progress";
-import { Volume2, Sliders, Shield, Award, User, LogOut } from "lucide-react";
+import { Volume2, Sliders, Shield, Award, User, LogOut } from "@/components/game/PixelIcons";
 
 interface SettingsModalProps {
   settings: GameSettings;
@@ -43,10 +43,10 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
-      <div className="bg-neutral-900 border border-neutral-700 w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+    <div role="dialog" aria-modal="true" aria-label="Settings and profile" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+      <div className="pixel-panel bg-neutral-900 border border-neutral-700 w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60">
+        <div className="pixel-modal-header px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60">
           <div>
             <h2 className="text-xl font-black text-white tracking-wide uppercase flex items-center gap-2">
               <Sliders className="w-5 h-5 text-amber-400" /> Settings & Slayer Profile
@@ -56,18 +56,18 @@ export default function SettingsModal({
             onClick={onClose}
             className="px-3 py-1.5 rounded-xl bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700 text-sm font-semibold transition"
           >
-            ✕ Close
+            Close
           </button>
         </div>
 
         <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh]">
           {/* Profile Card */}
-          <div className="p-4 rounded-2xl bg-neutral-950/50 border border-neutral-800 flex items-center gap-4">
+          <div className="pixel-profile p-4 rounded-2xl bg-neutral-950/50 border border-neutral-800 flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-2xl font-bold">
               <User className="w-7 h-7" />
             </div>
             <div className="flex-1">
-              <div className="flex items-center justify-between">
+              <div className="pixel-profile-heading flex items-center justify-between">
                 <span className="text-lg font-black text-white uppercase">{username}</span>
                 <span className="text-xs bg-amber-950/60 text-amber-400 border border-amber-800 px-2 py-0.5 rounded-lg font-bold font-mono">
                   Rank Lv.{level}
@@ -92,6 +92,7 @@ export default function SettingsModal({
               </div>
               <input
                 type="range"
+                aria-label="Sound FX Volume"
                 min="0"
                 max="100"
                 value={settings.sfxVolume}
@@ -106,6 +107,7 @@ export default function SettingsModal({
               </div>
               <input
                 type="range"
+                aria-label="BGM Theme Volume"
                 min="0"
                 max="100"
                 value={settings.musicVolume}
@@ -119,39 +121,42 @@ export default function SettingsModal({
           <div className="space-y-3 pt-2 border-t border-neutral-800">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Combat Engine Options</h3>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-950/40 border border-neutral-800">
+            <div className="pixel-setting flex items-center justify-between p-3 rounded-xl bg-neutral-950/40 border border-neutral-800">
               <div>
                 <div className="text-sm font-semibold text-white">Smart Auto-Targeting</div>
                 <div className="text-xs text-neutral-400">Auto lock-on nearby enemies when attacking</div>
               </div>
               <input
                 type="checkbox"
+                aria-label="Smart Auto-Targeting"
                 checked={settings.autoTarget}
                 onChange={() => handleToggle("autoTarget")}
                 className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
               />
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-950/40 border border-neutral-800">
+            <div className="pixel-setting flex items-center justify-between p-3 rounded-xl bg-neutral-950/40 border border-neutral-800">
               <div>
                 <div className="text-sm font-semibold text-white">Dynamic Screen Shake</div>
                 <div className="text-xs text-neutral-400">Impact shake on heavy hits and critical strikes</div>
               </div>
               <input
                 type="checkbox"
+                aria-label="Dynamic Screen Shake"
                 checked={settings.screenShake}
                 onChange={() => handleToggle("screenShake")}
                 className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
               />
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-950/40 border border-neutral-800">
+            <div className="pixel-setting flex items-center justify-between p-3 rounded-xl bg-neutral-950/40 border border-neutral-800">
               <div>
                 <div className="text-sm font-semibold text-white">Damage Indicators</div>
                 <div className="text-xs text-neutral-400">Show floating damage numbers and critical popups</div>
               </div>
               <input
                 type="checkbox"
+                aria-label="Damage Indicators"
                 checked={settings.damageNumbers}
                 onChange={() => handleToggle("damageNumbers")}
                 className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"

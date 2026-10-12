@@ -1,4 +1,4 @@
-import { heroPortrait, monsterPortrait } from "./artAssets";
+import { heroPortrait, monsterPortrait, spritePortrait } from "./artAssets";
 import type { SpriteKit } from "./sprites";
 
 export type HeroClass =
@@ -22,7 +22,7 @@ export interface HeroDef {
   weapon: string;
   role: string;
   avatar: string;
-  image: string; // character portrait (painted PNG or vector data URI)
+  image: string; // local low-resolution pixel-art portrait
   sprite: SpriteKit; // in-battle sprite kit
   color: string;
   accentColor: string;
@@ -1079,7 +1079,7 @@ const ENEMY_KITS: Record<string, Partial<SpriteKit>> = {
       },
     },
   },
-  // non-humanoids keep their smooth creature bodies
+  // Non-humanoids use their own pixel creature silhouettes.
   forest_spirit: { gear: ["vines"] },
 };
 
@@ -1134,3 +1134,8 @@ CHAPTERS.forEach((ch) => {
   const patch = BOSS_KITS[ch.boss.key];
   if (patch) Object.assign(ch.boss.sprite, patch);
 });
+
+// Menus and combat share the exact same class/enemy silhouettes and palettes.
+Object.values(HEROES).forEach((hero) => { hero.image = spritePortrait(hero.sprite); });
+Object.values(ENEMY_TYPES).forEach((enemy) => { enemy.image = spritePortrait(enemy.sprite); });
+CHAPTERS.forEach((chapter) => { chapter.boss.image = spritePortrait(chapter.boss.sprite); });

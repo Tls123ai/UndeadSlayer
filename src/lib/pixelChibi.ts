@@ -1,3 +1,5 @@
+import type { PixelPainter } from "./pixelPainter";
+
 /**
  * Authentic pixel-art chibi renderer — Soul Knight sprite-sheet style (v2).
  *
@@ -65,7 +67,7 @@ export interface ChibiDrawOpts {
   elite?: boolean;
 }
 
-export function drawChibi(ctx: CanvasRenderingContext2D, def: PixelChibiDef, o: ChibiDrawOpts) {
+export function drawChibi(ctx: PixelPainter, def: PixelChibiDef, o: ChibiDrawOpts) {
   const u = o.u;
   const flash = o.hitFlash > 0;
   const p = def.palette;
@@ -576,7 +578,7 @@ function drawArc(
 }
 
 function drawEffect(
-  ctx: CanvasRenderingContext2D,
+  ctx: PixelPainter,
   effect: PixelEffect,
   u: number,
   p: PixelPalette,

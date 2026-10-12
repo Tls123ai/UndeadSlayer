@@ -1,15 +1,17 @@
 "use client";
 
+import { PixelGlyph } from "@/components/game/PixelIcons";
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { HEROES, HeroDef, CHAPTERS, LevelDef, ENEMY_TYPES, BossDef } from "@/lib/gameData";
 import type { SpriteKit } from "@/lib/sprites";
 import { drawUnit, drawTerrainProp } from "@/lib/sprites";
 import { getSpriteImage, preloadSprites, HERO_CROP, MONSTER_CROP } from "@/lib/spriteImages";
+import { PIXEL_SCALE } from "@/lib/pixelPainter";
 import { sounds } from "@/lib/soundEffects";
 import {
   Heart, Zap, Sword, Pause, Play, ArrowLeft, Trophy, Skull, Map as MapIcon,
   Crown, Flame, Shield, Wind, Coins, DoorOpen, Sparkles,
-} from "lucide-react";
+} from "@/components/game/PixelIcons";
 import confetti from "canvas-confetti";
 
 interface CombatEngineProps {
@@ -391,7 +393,7 @@ export default function CombatEngine({
       s.hero.armor -= absorbed;
       dmg -= absorbed;
       s.particles.push(...impact(s.hero.x, s.hero.y - 30, "#60a5fa", 10));
-      s.damageNumbers.push({ text: `🛡${absorbed}`, x: s.hero.x + (Math.random() - 0.5) * 18, y: s.hero.y - 56, vy: -2, opacity: 1, color: "#60a5fa", isCrit: false });
+      s.damageNumbers.push({ text: `BLOCK ${absorbed}`, x: s.hero.x + (Math.random() - 0.5) * 18, y: s.hero.y - 56, vy: -2, opacity: 1, color: "#60a5fa", isCrit: false });
       sounds.playHit();
     }
     if (dmg > 0) {
@@ -767,6 +769,11 @@ export default function CombatEngine({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    // Only rendering is low-resolution. Movement, collision, aiming, timers,
+    // and pointer controls keep the original 900x560 world coordinates.
+    ctx.setTransform(1 / PIXEL_SCALE, 0, 0, 1 / PIXEL_SCALE, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     let animId = 0;
     const s0 = stateRef.current;
@@ -1090,7 +1097,7 @@ export default function CombatEngine({
             s.battleResolved = true;
             setGameOver("victory");
             sounds.playVictory();
-            try { confetti({ particleCount: 90, spread: 78, origin: { y: 0.6 } }); } catch {}
+            try { confetti({ particleCount: 90, spread: 78, shapes: ["square"], colors: ["#f3c775", "#74c69c", "#68aacc", "#e290a4"], disableForReducedMotion: true, origin: { y: 0.6 } }); } catch {}
             const isBossVictory = levelDef.isBossLevel;
             const eliteBonus = Math.round(s.elitesKilled * levelDef.rewardCoins * 0.2);
             const dropItem = isBossVictory ? chapter.completionReward.item : null;
@@ -1152,7 +1159,7 @@ export default function CombatEngine({
       /* ================= RENDER ================= */
       ctx.save();
       ctx.clearRect(0, 0, ARENA.w, ARENA.h);
-      if (settings.screenShake && s.shakeTime > 0) {
+      if (!reducedMotion.matches && settings.screenShake && s.shakeTime > 0) {
         const m = s.shakeTime * 15;
         ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
       }
@@ -1162,11 +1169,7 @@ export default function CombatEngine({
       // telegraph zones
       s.zones.forEach((z) => {
         const p = 1 - z.timer / z.windup;
-        const g = ctx.createRadialGradient(z.x, z.y, z.radius * 0.15, z.x, z.y, z.radius);
-        g.addColorStop(0, `${z.color}66`);
-        g.addColorStop(0.7, `${z.color}33`);
-        g.addColorStop(1, `${z.color}05`);
-        ctx.fillStyle = g;
+        ctx.fillStyle = `${z.color}44`;
         ctx.beginPath();
         ctx.ellipse(z.x, z.y, z.radius, z.radius * 0.62, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -1184,7 +1187,7 @@ export default function CombatEngine({
         ctx.ellipse(z.x, z.y, z.radius * 0.86, z.radius * 0.53, 0, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
         ctx.stroke();
         ctx.restore();
-        ctx.font = "bold 11px Inter, sans-serif";
+        ctx.font = '700 16px "Pixelify Sans Variable", monospace' ;
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(0,0,0,0.65)";
         ctx.fillText(z.label, z.x + 1, z.y - z.radius * 0.62 - 7);
@@ -1198,35 +1201,17 @@ export default function CombatEngine({
         ctx.save();
         ctx.translate(p.x, p.y + bobY);
         if (p.kind === "coin") {
-          const g = ctx.createRadialGradient(-2, -2, 1, 0, 0, 10);
-          g.addColorStop(0, "#fff7cc");
-          g.addColorStop(0.5, "#fbbf24");
-          g.addColorStop(1, "#b45309");
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.arc(0, -6, 7, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = "rgba(255,255,255,0.6)";
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
+          ctx.fillStyle = "#af7738"; ctx.fillRect(-6, -16, 12, 14);
+          ctx.fillStyle = "#e6b65a"; ctx.fillRect(-4, -18, 8, 18); ctx.fillRect(-6, -14, 12, 10);
+          ctx.fillStyle = "#fff0b0"; ctx.fillRect(-2, -14, 2, 8);
         } else if (p.kind === "heart") {
-          ctx.fillStyle = "#ef4444";
-          ctx.shadowColor = "#ef4444";
-          ctx.shadowBlur = 12;
-          ctx.beginPath();
-          ctx.moveTo(0, -2);
-          ctx.bezierCurveTo(-10, -12, -6, -20, 0, -14);
-          ctx.bezierCurveTo(6, -20, 10, -12, 0, -2);
-          ctx.fill();
+          ctx.fillStyle = "#ef716a";
+          ctx.fillRect(-8, -16, 6, 6); ctx.fillRect(2, -16, 6, 6);
+          ctx.fillRect(-8, -12, 16, 6); ctx.fillRect(-6, -6, 12, 2); ctx.fillRect(-4, -4, 8, 2); ctx.fillRect(-2, -2, 4, 2);
+          ctx.fillStyle = "#ffc2bb"; ctx.fillRect(-6, -14, 2, 2);
         } else {
-          const g = ctx.createRadialGradient(0, -8, 1, 0, -8, 12);
-          g.addColorStop(0, "#ffffff");
-          g.addColorStop(0.4, "#38bdf8");
-          g.addColorStop(1, "rgba(56,189,248,0)");
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.arc(0, -8, 12, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.fillStyle = "#68aacc"; ctx.fillRect(-4, -18, 8, 18); ctx.fillRect(-8, -14, 16, 10);
+          ctx.fillStyle = "#c4edf5"; ctx.fillRect(-2, -14, 4, 6);
         }
         ctx.restore();
       });
@@ -1292,18 +1277,14 @@ export default function CombatEngine({
           const pct = Math.max(0, en.hp / en.maxHp);
           ctx.fillStyle = "rgba(8,8,14,0.85)";
           ctx.beginPath();
-          ctx.roundRect(bx - 2, by - 2, w + 4, 9, 5);
+          ctx.rect(bx - 2, by - 2, w + 4, 9);
           ctx.fill();
-          const hg = ctx.createLinearGradient(bx, by, bx + w, by);
-          if (en.isBoss) { hg.addColorStop(0, "#ef4444"); hg.addColorStop(1, "#f59e0b"); }
-          else if (en.isElite) { hg.addColorStop(0, "#f97316"); hg.addColorStop(1, "#fbbf24"); }
-          else { hg.addColorStop(0, "#22c55e"); hg.addColorStop(1, "#84cc16"); }
-          ctx.fillStyle = hg;
+          ctx.fillStyle = en.isBoss ? "#ef716a" : en.isElite ? "#e6b65a" : "#74c69c";
           ctx.beginPath();
-          ctx.roundRect(bx, by, w * pct, 5, 3);
+          ctx.rect(bx, by, w * pct, 5);
           ctx.fill();
           if (en.isElite) {
-            ctx.font = "bold 9px Inter, sans-serif";
+            ctx.font = '700 14px "Pixelify Sans Variable", monospace' ;
             ctx.textAlign = "center";
             ctx.fillStyle = "#fb923c";
             ctx.fillText("ELITE", en.x, by - 5);
@@ -1311,44 +1292,28 @@ export default function CombatEngine({
         }
       });
 
-      // bullets
+      // Pixel projectiles with squared-off trails.
       s.bullets.forEach((b) => {
-        const g = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, b.radius * 2);
-        g.addColorStop(0, "#ffffff");
-        g.addColorStop(0.35, b.color);
-        g.addColorStop(1, `${b.color}00`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius * 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = `${b.color}55`;
-        ctx.lineWidth = b.radius * 0.7;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(b.x - b.vx * 2.6, b.y - b.vy * 2.6);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
+        const px = Math.max(2, Math.round(b.radius / 2) * 2);
+        const bx = Math.round(b.x / 2) * 2, by = Math.round(b.y / 2) * 2;
+        ctx.strokeStyle = b.color; ctx.lineWidth = px; ctx.lineCap = "butt";
+        ctx.beginPath(); ctx.moveTo(bx - b.vx * 2, by - b.vy * 2); ctx.lineTo(bx, by); ctx.stroke();
+        ctx.fillStyle = b.color; ctx.fillRect(bx - px, by - px, px * 2, px * 2);
+        ctx.fillStyle = "#fff4dc"; ctx.fillRect(bx - 1, by - 1, 2, 2);
       });
 
-      // particles
       s.particles.forEach((pt) => {
-        const a = Math.max(0, pt.life / pt.maxLife);
-        ctx.globalAlpha = a;
-        const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.radius * 2.1);
-        g.addColorStop(0, "#ffffff");
-        g.addColorStop(0.4, pt.color);
-        g.addColorStop(1, `${pt.color}00`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, pt.radius * 2.1, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+        ctx.fillStyle = pt.color;
+        const px = Math.max(2, Math.round(pt.radius / 2) * 2);
+        ctx.fillRect(Math.round(pt.x / 2) * 2, Math.round(pt.y / 2) * 2, px, px);
       });
       ctx.globalAlpha = 1;
 
       // damage numbers
       s.damageNumbers.forEach((dn) => {
         ctx.globalAlpha = Math.max(0, dn.opacity);
-        ctx.font = dn.isCrit ? "bold 20px Inter, sans-serif" : "bold 14px Inter, sans-serif";
+        ctx.font = dn.isCrit ? '700 24px "Pixelify Sans Variable", monospace'  : '700 20px "Pixelify Sans Variable", monospace' ;
         ctx.textAlign = "center";
         ctx.lineWidth = 3.5;
         ctx.strokeStyle = "rgba(0,0,0,0.85)";
@@ -1369,65 +1334,21 @@ export default function CombatEngine({
     const drawRoom = (c: CanvasRenderingContext2D) => {
       const pal = chapter.arenaPalette;
 
-      // floor
-      const floor = c.createLinearGradient(0, ARENA.minY - 40, 0, ARENA.h);
-      floor.addColorStop(0, pal[1]);
-      floor.addColorStop(1, pal[0]);
-      c.fillStyle = floor;
-      c.fillRect(0, 0, ARENA.w, ARENA.h);
-
-      // wall area (above play field)
-      const wall = c.createLinearGradient(0, 0, 0, ARENA.minY);
-      wall.addColorStop(0, pal[2]);
-      wall.addColorStop(1, pal[0]);
-      c.fillStyle = wall;
-      c.fillRect(0, 0, ARENA.w, ARENA.minY - 6);
-
-      // wall brick lines
-      c.strokeStyle = "rgba(0,0,0,0.28)";
-      c.lineWidth = 2;
-      for (let y = 14; y < ARENA.minY - 10; y += 26) {
-        c.beginPath();
-        c.moveTo(0, y);
-        c.lineTo(ARENA.w, y);
-        c.stroke();
-        const off = (y / 26) % 2 === 0 ? 0 : 34;
-        for (let x = off; x < ARENA.w; x += 68) {
-          c.beginPath();
-          c.moveTo(x, y);
-          c.lineTo(x, y + 26);
-          c.stroke();
+      c.fillStyle = pal[0]; c.fillRect(0, 0, ARENA.w, ARENA.h);
+      c.fillStyle = pal[2]; c.fillRect(0, 0, ARENA.w, ARENA.minY - 6);
+      for (let y = 8, row = 0; y < ARENA.minY - 12; y += 26, row++) {
+        for (let x = row % 2 ? -32 : 0; x < ARENA.w; x += 64) {
+          c.fillStyle = pal[0]; c.fillRect(x + 2, y + 2, 60, 22);
+          c.fillStyle = pal[3]; c.fillRect(x + 4, y + 4, 56, 2);
         }
       }
-      // wall top highlight
-      c.fillStyle = `${pal[4]}33`;
-      c.fillRect(0, ARENA.minY - 12, ARENA.w, 6);
-
-      // floor tiles
-      c.save();
-      c.globalAlpha = 0.14;
-      c.strokeStyle = pal[5];
-      c.lineWidth = 1.4;
-      for (let y = ARENA.minY; y <= ARENA.maxY + 40; y += 44) {
-        c.beginPath();
-        c.moveTo(0, y);
-        c.lineTo(ARENA.w, y);
-        c.stroke();
+      c.fillStyle = pal[4]; c.fillRect(0, ARENA.minY - 12, ARENA.w, 4);
+      for (let y = ARENA.minY, row = 0; y < ARENA.h; y += 44, row++) {
+        for (let x = 0, col = 0; x < ARENA.w; x += 64, col++) {
+          c.fillStyle = (row + col) % 2 ? pal[1] : pal[0]; c.fillRect(x + 2, y + 2, 60, 40);
+          c.fillStyle = pal[3]; c.fillRect(x + 6, y + 6, 12, 2);
+        }
       }
-      for (let x = 0; x < ARENA.w; x += 64) {
-        c.beginPath();
-        c.moveTo(x, ARENA.minY);
-        c.lineTo(x, ARENA.h);
-        c.stroke();
-      }
-      c.restore();
-
-      // centre light pool
-      const pool = c.createRadialGradient(ARENA.w / 2, (ARENA.minY + ARENA.maxY) / 2, 40, ARENA.w / 2, (ARENA.minY + ARENA.maxY) / 2, 470);
-      pool.addColorStop(0, "rgba(255,255,255,0.07)");
-      pool.addColorStop(1, "rgba(0,0,0,0)");
-      c.fillStyle = pool;
-      c.fillRect(0, ARENA.minY - 40, ARENA.w, ARENA.h);
 
       // side walls
       c.fillStyle = pal[2];
@@ -1449,30 +1370,24 @@ export default function CombatEngine({
       const dh = DOOR.h;
       c.save();
       if (s.doorOpen) {
-        const g = c.createLinearGradient(dx, dy, dx + dw, dy + dh);
-        g.addColorStop(0, "#fde68a");
-        g.addColorStop(0.5, "#f59e0b");
-        g.addColorStop(1, "#b45309");
-        c.fillStyle = g;
-        c.shadowColor = "#fbbf24";
-        c.shadowBlur = 26;
+        c.fillStyle = "#e6b65a";
         c.beginPath();
-        c.roundRect(dx - 6, dy, dw, dh, 8);
+        c.rect(dx - 6, dy, dw, dh);
         c.fill();
         c.shadowBlur = 0;
         c.fillStyle = "rgba(255,255,255,0.55)";
         c.beginPath();
-        c.roundRect(dx - 2, dy + 8, dw - 14, dh - 16, 6);
+        c.rect(dx - 2, dy + 8, dw - 14, dh - 16);
         c.fill();
         // arrow hint
         c.fillStyle = "#0b0a10";
-        c.font = "bold 16px Inter, sans-serif";
+        c.font = '700 24px "Pixelify Sans Variable", monospace' ;
         c.textAlign = "center";
-        c.fillText("➜", dx + dw / 2 - 2, dy + dh / 2 + 6);
+        c.fillText(">", dx + dw / 2 - 2, dy + dh / 2 + 6);
       } else {
         c.fillStyle = "#241d33";
         c.beginPath();
-        c.roundRect(dx - 6, dy, dw, dh, 8);
+        c.rect(dx - 6, dy, dw, dh);
         c.fill();
         c.strokeStyle = "rgba(255,255,255,0.14)";
         c.lineWidth = 2;
@@ -1492,12 +1407,6 @@ export default function CombatEngine({
       const props = [pal[3], pal[4], pal[5]];
       terrainRef.current.forEach((o) => drawTerrainProp(c, o.x, o.y, o.w, o.h, o.kind, props));
 
-      // vignette
-      const vig = c.createRadialGradient(ARENA.w / 2, ARENA.h / 2, 220, ARENA.w / 2, ARENA.h / 2, 620);
-      vig.addColorStop(0, "rgba(0,0,0,0)");
-      vig.addColorStop(1, "rgba(0,0,0,0.6)");
-      c.fillStyle = vig;
-      c.fillRect(0, 0, ARENA.w, ARENA.h);
     };
 
     /* ---------- minimap of the room ---------- */
@@ -1516,19 +1425,16 @@ export default function CombatEngine({
       }
       c.save();
       c.shadowColor = "rgba(0,0,0,0.7)";
-      c.shadowBlur = 18;
+      c.shadowBlur = 0;
       c.fillStyle = "rgba(12,11,20,0.92)";
       c.beginPath();
-      c.roundRect(mx - 4, my - 4, mw + 8, mh + 8, 12);
+      c.rect(mx - 4, my - 4, mw + 8, mh + 8);
       c.fill();
       c.restore();
 
-      const g = c.createLinearGradient(mx, my, mx, my + mh);
-      g.addColorStop(0, chapter.arenaPalette[0]);
-      g.addColorStop(1, chapter.arenaPalette[2]);
-      c.fillStyle = g;
+      c.fillStyle = chapter.arenaPalette[0];
       c.beginPath();
-      c.roundRect(mx, my, mw, mh, 9);
+      c.rect(mx, my, mw, mh);
       c.fill();
       c.strokeStyle = big ? "rgba(245,197,66,0.75)" : "rgba(148,130,200,0.4)";
       c.lineWidth = 2;
@@ -1537,14 +1443,14 @@ export default function CombatEngine({
       c.fillStyle = "rgba(226,222,255,0.3)";
       terrainRef.current.forEach((o) => {
         c.beginPath();
-        c.roundRect(mx + o.x * sx, my + o.y * sy, Math.max(3, o.w * sx), Math.max(3, o.h * sy), 2);
+        c.rect(mx + o.x * sx, my + o.y * sy, Math.max(3, o.w * sx), Math.max(3, o.h * sy));
         c.fill();
       });
 
       // door marker
       c.fillStyle = s.doorOpen ? "#fbbf24" : "rgba(255,255,255,0.25)";
       c.beginPath();
-      c.roundRect(mx + (ARENA.maxX + 10) * sx, my + DOOR.y * sy, 6, DOOR.h * sy, 2);
+      c.rect(mx + (ARENA.maxX + 10) * sx, my + DOOR.y * sy, 6, DOOR.h * sy);
       c.fill();
 
       s.zones.forEach((z) => {
@@ -1579,11 +1485,11 @@ export default function CombatEngine({
       c.arc(hx, hy, 3.6, 0, Math.PI * 2);
       c.fill();
 
-      c.font = "bold 10px Inter, sans-serif";
+      c.font = '700 14px "Pixelify Sans Variable", monospace';
       c.fillStyle = big ? "#f5c542" : "rgba(245,197,66,0.9)";
       c.fillText(big ? "ROOM MAP" : "MAP", mx + 8, my + 15);
       if (big) {
-        c.font = "bold 12px Inter, sans-serif";
+        c.font = '700 16px "Pixelify Sans Variable", monospace';
         c.fillStyle = "#e5e7eb";
         c.fillText(`${chapter.subtitle} — Stage ${levelNumber} · Room ${s.room}/${totalRooms}`, mx + 8, my + 34);
         const legend: Array<[string, string]> = [["#4ade80", "YOU"], ["#ef4444", "ENEMY"], ["#fb923c", "ELITE"], ["#f43f5e", "BOSS"], ["#fbbf24", "DOOR/PICKUPS"]];
@@ -1594,7 +1500,7 @@ export default function CombatEngine({
           c.arc(lx + 4, my + mh - 40, 4, 0, Math.PI * 2);
           c.fill();
           c.fillStyle = "#cbd5e1";
-          c.font = "bold 10px Inter, sans-serif";
+          c.font = '700 14px "Pixelify Sans Variable", monospace';
           c.fillText(label, lx + 13, my + mh - 36);
         });
         c.fillStyle = "#9ca3af";
@@ -1738,7 +1644,7 @@ export default function CombatEngine({
       {/* ===== CANVAS ===== */}
       <div className="relative w-full max-w-5xl">
         <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.95)] bg-black">
-          <canvas ref={canvasRef} width={900} height={560} className="block w-full h-auto" />
+          <canvas ref={canvasRef} width={ARENA.w / PIXEL_SCALE} height={ARENA.h / PIXEL_SCALE} data-testid="combat-canvas" data-pixel-scale={PIXEL_SCALE} role="img" aria-label="Pixel-art battlefield" className="block w-full h-auto" />
 
           {banner && (
             <div className="absolute top-[18%] left-0 right-0 flex items-center justify-center pointer-events-none">
@@ -1779,7 +1685,7 @@ export default function CombatEngine({
                     className="btn-3d panel rounded-2xl p-4 text-left hover:scale-[1.02] transition"
                     style={{ borderColor: `${b.color}66` }}
                   >
-                    <div className="text-2xl mb-2">{b.icon}</div>
+                    <PixelGlyph value={b.icon} size={32} className="mb-2" />
                     <div className="text-xs font-bold uppercase" style={{ color: b.color }}>{b.name}</div>
                     <div className="text-[10px] text-neutral-300 mt-1 leading-relaxed">{b.desc}</div>
                   </button>
@@ -1842,10 +1748,10 @@ export default function CombatEngine({
       </div>
 
       {/* ===== CONTROLS ===== */}
-      <div className="w-full max-w-5xl flex items-center justify-between gap-3 mt-3">
+      <div data-testid="combat-controls" className="w-full max-w-5xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 mt-3">
         {/* joystick */}
         <div
-          className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-neutral-900/80 border-2 border-white/10 touch-none flex items-center justify-center shrink-0 shadow-inner"
+          data-testid="movement-pad" className="pixel-joystick relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-neutral-900/80 border-2 border-white/10 touch-none flex items-center justify-center shrink-0 shadow-inner"
           onTouchMove={handleJoystickTouch}
           onTouchEnd={handleJoystickEnd}
           onMouseDown={(e) => {
@@ -1877,7 +1783,7 @@ export default function CombatEngine({
         </div>
 
         {/* action buttons */}
-        <div className="flex items-end gap-2.5 shrink-0">
+        <div className="flex items-end gap-2 sm:gap-2.5 shrink-0">
           <button
             onClick={drinkHealthPotion}
             disabled={potionsCount <= 0 || hp >= maxHpUi}

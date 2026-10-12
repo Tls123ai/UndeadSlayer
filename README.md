@@ -74,6 +74,16 @@ The save API validates payloads and derives ownership only from the session. Reg
 - Loading has accessible status/progress announcements, small-screen layouts and reduced-motion support. The screen itself uses only CSS/vector artwork, so it does not wait on external assets.
 - Autosaves are serialized. Only successful responses show “Progress saved”; failures retain local edits and display a retry action. Signing out waits for saves and refuses to discard failed ones. Expired sessions can sign in again without replacing pending progress.
 
+## Pixel-art presentation
+
+The entire game uses the same retro pixel-art visual system, including authentication, loading, sanctuary menus, every modal, portraits, combat, enemies, bosses, terrain, pickups and spell effects.
+
+- `pixelChibi.ts` and `pixelCreatures.ts` draw integer-grid, limited-palette sprites. Menu portraits are generated as 40×40 SVG bitmaps using the same brush and definitions as battle sprites; no external artwork is needed.
+- `PixelIcons.tsx` supplies hand-drawn bitmap icons instead of smooth vector icons or platform-dependent emoji.
+- The battle canvas renders to a 450×280 framebuffer and enlarges with nearest-neighbour rendering. Simulation, collision, targeting and touch coordinates still use the original 900×560 world, so presentation resolution does not change gameplay.
+- Pixelify Sans and Press Start 2P are bundled locally via Fontsource: no Google Fonts requests. Their SIL Open Font Licenses are included in `public/licenses/`.
+- Square panels, stepped shadows, pixel landscapes, readable form text, visible keyboard focus and reduced-motion support are shared across screens.
+
 ## Verification
 
 ```bash
@@ -86,7 +96,7 @@ npx playwright install chromium
 npm run test:e2e      # Stop your dev server first; uses an isolated local test database
 ```
 
-Browser tests cover startup/retry, registration/login/logout, saved progress restoration, failed-save recovery, rapid purchases, expired sessions, battle loading/artwork failures, mobile/reduced-motion behavior, and API ownership/token checks.
+Browser tests cover startup/retry, registration/login/logout, saved progress restoration, failed-save recovery, rapid purchases, expired sessions, battle loading/artwork failures, mobile/reduced-motion behavior, API ownership/token checks, pixel portraits/poses, bundled fonts, all menu windows, framebuffer scaling, and mobile pixel layouts.
 
 To test an existing development preview instead of starting a test server:
 
