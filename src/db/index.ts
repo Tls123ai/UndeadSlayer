@@ -1,42 +1,107 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import path from "node:path";
+import { mkdir } from "node:fs/promises";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle as postgresDrizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { drizzle as embeddedDrizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 import { Pool } from "pg";
+import * as schema from "./schema";
+import { ensureSchema } from "./ensureSchema";
+import { getPostgresConnectionString, getDatabaseSetupMessage } from "./config";
+import { inspectDatabaseFailure, DATABASE_ERROR_MESSAGES, type DatabaseErrorCode } from "@/lib/databaseErrors";
 
-/**
- * Build-safe database client.
- *
- * IMPORTANT: this module must NEVER throw at import time. `next build` imports
- * every API route to collect page data, and on Vercel `DATABASE_URL` is often
- * only present at runtime (or missing entirely if the env var was never added
- * in the Vercel dashboard). Throwing here fails the entire Production build.
- *
- * When `DATABASE_URL` is absent we fall back to a placeholder connection string
- * so the build succeeds; any real query will fail at request time, and API
- * routes + /api/health translate that into a clear "database unconfigured"
- * response via `isDatabaseConfigured()` instead of a cryptic crash.
- */
-const connectionString =
-  process.env.DATABASE_URL ??
-  "postgresql://localhost:5432/undead-slayer-build-placeholder";
+export type AppDatabase = NodePgDatabase<typeof schema> | PgliteDatabase<typeof schema>;
+export type DatabaseConnection =
+  | { kind: "postgresql"; db: NodePgDatabase<typeof schema>; client: Pool }
+  | { kind: "embedded"; db: PgliteDatabase<typeof schema>; client: PGlite };
 
-export function isDatabaseConfigured(): boolean {
-  return !!process.env.DATABASE_URL;
+export class DatabaseUnavailableError extends Error {
+  readonly code: DatabaseErrorCode;
+  readonly sqlState?: string;
+  constructor(message?: string, options?: ErrorOptions, code?: DatabaseErrorCode) {
+    const failure = inspectDatabaseFailure(options?.cause);
+    super(message || failure?.message || DATABASE_ERROR_MESSAGES.DATABASE_UNAVAILABLE, options);
+    this.name = "DatabaseUnavailableError";
+    this.code = code || failure?.code || "DATABASE_UNAVAILABLE";
+    this.sqlState = failure?.sqlState;
+  }
 }
 
 const globalForDb = globalThis as typeof globalThis & {
-  __arenaNextJsPostgresqlPool?: Pool;
+  __undeadSlayerDatabase?: Promise<DatabaseConnection>;
 };
 
-function createPool(): Pool {
-  if (globalForDb.__arenaNextJsPostgresqlPool) {
-    return globalForDb.__arenaNextJsPostgresqlPool;
-  }
-  const pool = new Pool({ connectionString });
-  // Cache on globalThis in every env so Vercel serverless functions reuse
-  // connections instead of exhausting the Postgres connection limit.
-  globalForDb.__arenaNextJsPostgresqlPool = pool;
-  return pool;
+/** Never create a connection at import time: builds do not need a database. */
+export function getDatabaseMode(): DatabaseConnection["kind"] | "unconfigured" {
+  if (getPostgresConnectionString()) return "postgresql";
+  // Serverless filesystems are ephemeral. Never silently use them for player saves.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) return "unconfigured";
+  if (process.env.PGLITE_DATA_DIR || process.env.NODE_ENV !== "production") return "embedded";
+  return "unconfigured";
 }
 
-export const pool = createPool();
+async function connectDatabase(): Promise<DatabaseConnection> {
+  const mode = getDatabaseMode();
+  if (mode === "unconfigured") {
+    throw new DatabaseUnavailableError(getDatabaseSetupMessage(), undefined, "DATABASE_NOT_CONFIGURED");
+  }
 
-export const db = drizzle(pool);
+  let connection: DatabaseConnection | undefined;
+  try {
+    if (mode === "postgresql") {
+      const pool = new Pool({
+        connectionString: getPostgresConnectionString()!,
+        max: 5,
+        connectionTimeoutMillis: 8_000,
+        idleTimeoutMillis: 30_000,
+        statement_timeout: 15_000,
+        query_timeout: 20_000,
+      });
+      // An idle socket failure must not take down the game server.
+      pool.on("error", () => console.error("[database] An idle PostgreSQL connection failed."));
+      connection = { kind: mode, db: postgresDrizzle(pool, { schema }), client: pool };
+    } else {
+      // Runtime player data is never a deployable/build-traced asset.
+      const dataDir = path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.PGLITE_DATA_DIR || "data/undead-slayer");
+      await mkdir(dataDir, { recursive: true });
+      const client = new PGlite(dataDir);
+      connection = { kind: mode, db: embeddedDrizzle(client, { schema }), client };
+      await client.waitReady;
+    }
+    // Both drivers use the same versioned PostgreSQL migrations.
+    await ensureSchema(connection);
+    return connection;
+  } catch (error) {
+    if (connection?.kind === "postgresql") await connection.client.end().catch(() => {});
+    if (connection?.kind === "embedded") await connection.client.close().catch(() => {});
+    throw new DatabaseUnavailableError(undefined, { cause: error });
+  }
+}
+
+/** One connection AND one initialization promise across all routes and dev reloads. */
+export async function getDatabaseConnection(): Promise<DatabaseConnection> {
+  if (!globalForDb.__undeadSlayerDatabase) {
+    const pending = connectDatabase();
+    globalForDb.__undeadSlayerDatabase = pending;
+    // A failed startup must be retryable, not cached forever.
+    void pending.catch(() => {
+      if (globalForDb.__undeadSlayerDatabase === pending) {
+        delete globalForDb.__undeadSlayerDatabase;
+      }
+    });
+  }
+  return globalForDb.__undeadSlayerDatabase;
+}
+
+export async function getDatabase(): Promise<AppDatabase> {
+  return (await getDatabaseConnection()).db;
+}
+
+// Used by the setup CLI and tests; request handlers keep their shared client open.
+export async function closeDatabase(): Promise<void> {
+  const pending = globalForDb.__undeadSlayerDatabase;
+  delete globalForDb.__undeadSlayerDatabase;
+  if (!pending) return;
+  const connection = await pending;
+  if (connection.kind === "postgresql") await connection.client.end();
+  else await connection.client.close();
+}

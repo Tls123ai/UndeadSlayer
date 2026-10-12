@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { CHAPTERS, ENEMY_TYPES } from "@/lib/gameData";
 import ArtImage from "@/components/game/ArtImage";
 import { sounds } from "@/lib/soundEffects";
-import { Lock, Skull, CheckCircle2, Play, Swords, Crown, Ghost, MapPin } from "lucide-react";
+import { Lock, Skull, CheckCircle2, Play, Swords, Crown, Ghost, MapPin } from "@/components/game/PixelIcons";
 
 interface ChapterMapModalProps {
   highestChapterUnlocked: number;
@@ -22,10 +22,10 @@ export default function ChapterMapModal({
   const uniqueEnemies = Array.from(new Set(chapter.levels.flatMap((l) => l.enemyTypes)));
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="World map" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
       <div className="panel rounded-3xl w-full max-w-6xl max-h-[93vh] flex flex-col overflow-hidden border-white/10">
         {/* header */}
-        <div className="px-5 py-4 border-b border-white/10 bg-black/30 flex items-center justify-between gap-3">
+        <div className="pixel-modal-header px-5 py-4 border-b border-white/10 bg-black/30 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-wide flex items-center gap-2">
               <Swords className="w-5 h-5 text-red-400" /> World Map — 5 Chapters · 25 Stages
@@ -38,7 +38,7 @@ export default function ChapterMapModal({
             onClick={onClose}
             className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 text-xs font-semibold transition shrink-0"
           >
-            ✕ Close
+            Close
           </button>
         </div>
 

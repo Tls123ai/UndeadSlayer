@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { PixelGlyph } from "./PixelIcons";
 
 interface ArtImageProps {
   src: string;
@@ -27,15 +28,13 @@ export default function ArtImage({
   if (failed) {
     return (
       <div
-        className={`flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-800 via-purple-950 to-slate-950 text-amber-200 font-black ${className}`}
+        className={`flex items-center justify-center overflow-hidden bg-neutral-900 text-amber-200 font-black ${className}`}
         style={style}
         role="img"
         aria-label={alt}
         title={alt}
       >
-        <span className="drop-shadow-[0_0_12px_rgba(251,191,36,.35)]">
-          {fallbackText || alt.slice(0, 1).toUpperCase() || "✦"}
-        </span>
+        <PixelGlyph value={fallbackText || "☠️"} size={32} />
       </div>
     );
   }

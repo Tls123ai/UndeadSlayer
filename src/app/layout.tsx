@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "@fontsource-variable/pixelify-sans";
+import "@fontsource/press-start-2p/latin-400.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,7 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-neutral-950 text-neutral-100 antialiased min-h-screen selection:bg-amber-500 selection:text-black">
+      <body className="pixel-game bg-neutral-950 text-neutral-100 min-h-screen selection:bg-amber-500 selection:text-black">
         {children}
       </body>
     </html>

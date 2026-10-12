@@ -1,23 +1,22 @@
-import { db, isDatabaseConfigured } from "@/db";
 import { sql } from "drizzle-orm";
+import { getDatabase, getDatabaseMode } from "@/db";
+import { apiError, json } from "@/lib/api";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!isDatabaseConfigured()) {
-    return Response.json(
-      {
-        ok: false,
-        database: "unconfigured",
-        hint: "Set the DATABASE_URL environment variable (Vercel Dashboard → Project → Settings → Environment Variables) and redeploy.",
-      },
-      { status: 503 }
-    );
-  }
   try {
+    const db = await getDatabase();
     await db.execute(sql`select 1`);
-    return Response.json({ ok: true });
-  } catch {
-    return Response.json({ ok: false }, { status: 500 });
+    return json({ ok: true, database: getDatabaseMode(), persistent: true, schemaReady: true });
+  } catch (error) {
+    const failure = await apiError(error, "health").json();
+    return json({
+      ...failure,
+      ok: false,
+      database: getDatabaseMode() === "unconfigured" ? "unconfigured" : "unavailable",
+      schemaReady: false,
+    }, 503);
   }
 }

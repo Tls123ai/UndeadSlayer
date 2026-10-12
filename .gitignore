@@ -12,3 +12,12 @@ coverage/
 
 *.log
 .DS_Store
+
+# Persistent local database files must never be committed.
+data/
+.cache/
+.cache-*
+playwright-report/
+test-results/
+*.tsbuildinfo
+next-env.d.ts

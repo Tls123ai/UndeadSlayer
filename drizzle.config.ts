@@ -1,16 +1,17 @@
+import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { getPostgresConnectionString } from "./src/db/config";
 
-/**
- * Reads DATABASE_URL from the environment with a local-dev fallback, so
- * `drizzle-kit push` / `generate` / `check` work both locally and on Vercel
- * without editing config files per environment.
- */
+config({ path: ".env.local", quiet: true });
+config({ path: ".env", quiet: true });
+const connectionString = getPostgresConnectionString();
+
 export default defineConfig({
   dialect: "postgresql",
   schema: "./src/db/schema.ts",
-  dbCredentials: {
-    url:
-      process.env.DATABASE_URL ??
-      "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
-  },
+  out: "./drizzle",
+  // Generating migrations needs no running database. Never invent credentials.
+  ...(connectionString
+    ? { dbCredentials: { url: connectionString } }
+    : {}),
 });

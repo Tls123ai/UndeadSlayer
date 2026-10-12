@@ -1,61 +1,69 @@
-import { pool, isDatabaseConfigured } from "./index";
+import path from "node:path";
+import { sql, getTableColumns, getTableName } from "drizzle-orm";
+import { readMigrationFiles } from "drizzle-orm/migrator";
+import { users, sessions, gameProgress } from "./schema";
+import type { DatabaseConnection, AppDatabase } from "./index";
 
-/**
- * Idempotent runtime schema bootstrap.
- *
- * The preview sandbox can start with an empty PostgreSQL database, so before any
- * auth/save query runs we make sure both tables exist. This mirrors
- * `src/db/schema.ts` exactly and is safe to call repeatedly (CREATE TABLE IF NOT EXISTS).
- * `npx drizzle-kit push` remains the canonical way to apply schema changes.
- */
-const SQL = `
-CREATE TABLE IF NOT EXISTS users (
-  id SERIAL PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT now() NOT NULL,
-  updated_at TIMESTAMP DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS game_progress (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  level INTEGER NOT NULL DEFAULT 1,
-  xp INTEGER NOT NULL DEFAULT 0,
-  coins INTEGER NOT NULL DEFAULT 500,
-  health_potions INTEGER NOT NULL DEFAULT 5,
-  selected_hero_id TEXT NOT NULL DEFAULT 'aiden',
-  highest_chapter_unlocked INTEGER NOT NULL DEFAULT 1,
-  highest_level_unlocked INTEGER NOT NULL DEFAULT 1,
-  completed_levels JSONB NOT NULL DEFAULT '[]'::jsonb,
-  unlocked_heroes JSONB NOT NULL DEFAULT '["aiden","luna"]'::jsonb,
-  hero_levels JSONB NOT NULL DEFAULT '{"aiden":1,"luna":1,"ronan":1,"mira":1,"kael":1,"bruno":1,"sylvie":1,"darius":1,"elian":1,"riven":1}'::jsonb,
-  stat_upgrades JSONB NOT NULL DEFAULT '{"attackLevel":1,"healthLevel":1,"defenseLevel":1,"skillLevel":1}'::jsonb,
-  inventory JSONB NOT NULL DEFAULT '[]'::jsonb,
-  settings JSONB NOT NULL DEFAULT '{"musicVolume":70,"sfxVolume":80,"autoTarget":true,"screenShake":true,"damageNumbers":true}'::jsonb,
-  updated_at TIMESTAMP DEFAULT now() NOT NULL
-);
-`;
-
-let cached: Promise<void> | null = null;
-
-export function ensureSchema(): Promise<void> {
-  // No database configured (e.g. DATABASE_URL missing on Vercel): skip the
-  // bootstrap query. API routes report this state explicitly instead.
-  if (!isDatabaseConfigured()) {
-    return Promise.resolve();
+export class DatabaseSchemaError extends Error {
+  readonly code = "DATABASE_SCHEMA_NOT_READY";
+  constructor(options?: ErrorOptions) {
+    super("The database schema could not be initialized.", options);
+    this.name = "DatabaseSchemaError";
   }
-  if (!cached) {
-    cached = (async () => {
-      try {
-        await pool.query(SQL);
-      } catch (err) {
-        // Never crash the request path because of a bootstrap hiccup; reset so the
-        // next request retries.
-        cached = null;
-        console.error("[ensureSchema] failed:", err);
+}
+
+const MIGRATION_LOCK = 73519428;
+const requiredColumns = [users, sessions, gameProgress].flatMap((table) =>
+  Object.values(getTableColumns(table)).map((column) => `${getTableName(table)}.${column.name}`),
+);
+
+/** Fail before authentication when a table/column is missing, not in SELECT users.
+ * Only names are checked; no account data is read or returned. */
+async function verifySchema(db: AppDatabase) {
+  const result = await db.execute(sql`
+    SELECT table_name, column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name IN ('users', 'sessions', 'game_progress')
+  `);
+  const found = new Set(result.rows.map((row) => `${row.table_name}.${row.column_name}`));
+  if (requiredColumns.some((column) => !found.has(column))) throw new DatabaseSchemaError();
+}
+
+/** One transaction includes the lock, journal, DDL, and schema verification.
+ * A transaction-scoped lock is safe with Neon/PgBouncer transaction pooling;
+ * session-level pg_advisory_lock can leak or unlock a different pooled session.
+ * Failed setup rolls back, propagates, and can be retried by getDatabaseConnection. */
+export async function ensureSchema(connection: DatabaseConnection): Promise<void> {
+  let migrations: ReturnType<typeof readMigrationFiles>;
+  try {
+    migrations = readMigrationFiles({ migrationsFolder: path.join(process.cwd(), "drizzle") });
+  } catch (cause) {
+    throw new DatabaseSchemaError({ cause });
+  }
+
+  await connection.db.transaction(async (tx) => {
+    if (connection.kind === "postgresql") await tx.execute(sql`SELECT pg_advisory_xact_lock(${MIGRATION_LOCK})`);
+    await tx.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+    await tx.execute(sql`
+      CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+        id SERIAL PRIMARY KEY,
+        hash TEXT NOT NULL,
+        created_at BIGINT
+      )
+    `);
+    const history = await tx.execute(sql`
+      SELECT created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1
+    `);
+    const latest = Number(history.rows[0]?.created_at ?? -1);
+    for (const migration of migrations) {
+      if (migration.folderMillis <= latest) continue;
+      for (const statement of migration.sql) {
+        if (statement.trim()) await tx.execute(sql.raw(statement));
       }
-    })();
-  }
-  return cached;
+      await tx.execute(sql`
+        INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+        VALUES (${migration.hash}, ${migration.folderMillis})
+      `);
+    }
+    await verifySchema(tx as AppDatabase);
+  });
 }

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { sounds } from "@/lib/soundEffects";
-import { Sword, Shield, Heart, Zap, Coins, Sparkles, ChevronUp } from "lucide-react";
+import { Sword, Shield, Heart, Zap, Coins, Sparkles, ChevronUp } from "@/components/game/PixelIcons";
 
 interface UpgradesModalProps {
   coins: number;
@@ -78,10 +78,10 @@ export default function UpgradesModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
-      <div className="bg-neutral-900 border border-neutral-700 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+    <div role="dialog" aria-modal="true" aria-label="Stat training" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+      <div className="pixel-panel bg-neutral-900 border border-neutral-700 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60">
+        <div className="pixel-modal-header px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-amber-400" /> Mastery Training Sanctuary
@@ -98,7 +98,7 @@ export default function UpgradesModal({
               onClick={onClose}
               className="px-3 py-1.5 rounded-xl bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700 text-sm font-semibold transition"
             >
-              ✕ Close
+              Close
             </button>
           </div>
         </div>

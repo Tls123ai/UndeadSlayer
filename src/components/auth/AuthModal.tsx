@@ -2,15 +2,23 @@
 
 import React, { useState } from "react";
 import { sounds } from "@/lib/soundEffects";
-import { Eye, EyeOff, ShieldAlert, Sparkles, LogIn, UserPlus } from "lucide-react";
+import { Eye, EyeOff, ShieldAlert, LogIn, UserPlus, Database } from "@/components/game/PixelIcons";
+import PixelScene from "@/components/game/PixelScene";
+import { Swords } from "@/components/game/PixelIcons";
+import LoadingScreen from "@/components/game/LoadingScreen";
+import { requestJson, errorMessage, finishLoading, LOADING_SCREEN_DURATIONS } from "@/lib/clientApi";
+import type { AuthResponse, PlayerUser, PlayerProgress } from "@/lib/progress";
 
 interface AuthModalProps {
-  onSuccess: (user: { id: number; username: string }, progress: any) => void;
+  onSuccess: (user: PlayerUser, progress: PlayerProgress) => void | Promise<void>;
+  initialUsername?: string;
+  onCancel?: () => void;
 }
 
-export default function AuthModal({ onSuccess }: AuthModalProps) {
+export default function AuthModal({ onSuccess, initialUsername, onCancel }: AuthModalProps) {
+  const reauthenticate = !!initialUsername;
   const [isRegister, setIsRegister] = useState(false);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(initialUsername || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -19,6 +27,7 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     sounds.playClick();
 
@@ -35,61 +44,52 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
       return;
     }
 
+    const startedAt = performance.now();
     setLoading(true);
 
     try {
       const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
-      const res = await fetch(endpoint, {
+      const data = await requestJson<AuthResponse>(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: username.trim(),
-          password,
-        }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
-
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        throw new Error("Server returned an invalid response.");
-      }
-
-      if (!res.ok) {
-        setError(data.error || "Authentication failed. Please check credentials.");
-        setLoading(false);
-        return;
-      }
+      if (!data.user || !data.progress) throw new Error("Your saved adventure could not be loaded. Please try again.");
+      await finishLoading(startedAt, LOADING_SCREEN_DURATIONS.authentication);
 
       try {
         sounds.playVictory();
       } catch (e) {
         // audio context resume error or user gesture constraint
       }
-      onSuccess(data.user, data.progress);
-    } catch (err: any) {
-      setError("Network error connecting to game server.");
+      await onSuccess(data.user, data.progress);
+    } catch (error) {
+      setError(errorMessage(error, "Could not connect to the game server. Please try again."));
     } finally {
       setLoading(false);
     }
   };
 
+  if (loading) return <LoadingScreen
+    title={isRegister ? "Forging your slayer's legacy" : reauthenticate ? "Reconnecting your saved adventure" : "Restoring your adventure"}
+    message={isRegister ? "Creating your account and starter save…" : "Checking your passphrase and loading your save…"}
+    tip="Your heroes, equipment, settings, and chapter progress belong to your account — sign in to continue where you left off."
+  />;
+
   return (
     <div className="min-h-screen w-full bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Visual Effects */}
-      <div className="absolute inset-0 bg-radial-gradient from-amber-950/20 via-neutral-950 to-neutral-950 pointer-events-none" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+      <PixelScene />
 
       {/* Main Auth Card */}
-      <div className="w-full max-w-md bg-neutral-900/90 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-xl">
+      <div className="pixel-auth-card w-full max-w-md bg-neutral-900/90 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 backdrop-blur-xl">
         {/* Game Title & Lore Logo */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl mb-3 shadow-inner">
-            <span className="text-4xl">⚔️</span>
+            <Swords size={44} className="text-amber-400" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-400 to-purple-400 uppercase tracking-wider">
-            UNDEAD SLAYER: CHRONICLES
+          <h1 className="pixel-auth-title">
+            <span>UNDEAD SLAYER</span>
+            <small>CHRONICLES</small>
           </h1>
           <p className="text-xs text-neutral-400 mt-1">
             2D Action RPG • 10 Hero Classes • 5 Chapters • 25 Stages
@@ -97,7 +97,7 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
         </div>
 
         {/* Tab switch */}
-        <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10 mb-6">
+        {reauthenticate ? <p className="text-center text-xs text-neutral-400 mb-6">Sign in again to save your pending progress. Your local changes will be kept.</p> : <div className="flex bg-black/40 p-1 rounded-2xl border border-white/10 mb-6">
           <button
             type="button"
             onClick={() => {
@@ -125,11 +125,11 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
           >
             <UserPlus className="w-3.5 h-3.5" /> Create Account
           </button>
-        </div>
+        </div>}
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-4 p-3 rounded-2xl bg-red-950/60 border border-red-800/80 text-red-300 text-xs flex items-center gap-2">
+          <div role="alert" className="mb-4 p-3 rounded-2xl bg-red-950/60 border border-red-800/80 text-red-300 text-xs flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 shrink-0 text-red-400" />
             <span>{error}</span>
           </div>
@@ -138,12 +138,16 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+            <label htmlFor="slayer-username" className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
               Slayer Username
             </label>
             <input
+              id="slayer-username"
               type="text"
               required
+              autoComplete="username"
+              maxLength={32}
+              readOnly={reauthenticate}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. shadowblade"
@@ -152,12 +156,14 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+            <label htmlFor="slayer-password" className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
               Secret Passphrase
             </label>
             <div className="relative">
               <input
+                id="slayer-password"
                 type={showPassword ? "text" : "password"}
+                autoComplete={isRegister ? "new-password" : "current-password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -166,6 +172,7 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide passphrase" : "Show passphrase"}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition"
               >
@@ -176,11 +183,13 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
 
           {isRegister && (
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+              <label htmlFor="slayer-confirm-password" className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
                 Confirm Passphrase
               </label>
               <input
+                id="slayer-confirm-password"
                 type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -208,8 +217,11 @@ export default function AuthModal({ onSuccess }: AuthModalProps) {
           </button>
         </form>
 
+        {onCancel && <button type="button" onClick={onCancel} className="mt-4 w-full text-xs text-neutral-400 hover:text-white">Return to sanctuary</button>}
+
         {/* Footer info */}
         <div className="mt-6 pt-4 border-t border-neutral-800/80 text-center">
+          <div className="mb-3 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400"><Database className="w-3.5 h-3.5" /> Database-backed account saves</div>
           <p className="text-[11px] text-neutral-400">
             Account requires only a <span className="text-amber-400 font-semibold">Username</span>, <span className="text-amber-400 font-semibold">Password</span>, and <span className="text-amber-400 font-semibold">Confirm Password</span>. No email or Gmail needed.
           </p>
