@@ -8,7 +8,6 @@ import { isDatabaseConfigured } from "@/db";
 
 export async function POST(req: Request) {
   try {
-    await ensureSchema();
     if (!isDatabaseConfigured()) {
       return NextResponse.json(
         {
@@ -18,6 +17,7 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
+    await ensureSchema();
     const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
