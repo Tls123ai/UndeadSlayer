@@ -3,6 +3,7 @@
 import { PixelGlyph } from "@/components/game/PixelIcons";
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { HEROES, HeroDef, CHAPTERS, LevelDef, ENEMY_TYPES, BossDef } from "@/lib/gameData";
+import ArtImage from "@/components/game/ArtImage";
 import type { SpriteKit } from "@/lib/sprites";
 import { drawUnit, drawTerrainProp } from "@/lib/sprites";
 import { getSpriteImage, preloadSprites, HERO_CROP, MONSTER_CROP } from "@/lib/spriteImages";
@@ -1545,7 +1546,7 @@ export default function CombatEngine({
             className="w-12 h-12 rounded-xl overflow-hidden border-2 shrink-0 shadow-lg"
             style={{ borderColor: heroDef.accentColor, backgroundColor: heroDef.color }}
           >
-            <img src={heroDef.image} alt={heroDef.name} className="w-full h-full object-cover" />
+            <ArtImage src={heroDef.image} alt={heroDef.name} fallbackText={heroDef.classIcon} className="w-full h-full object-cover" />
           </div>
           <div className="min-w-[160px] sm:min-w-[248px]">
             <div className="flex items-center justify-between text-[10px] mb-1 gap-2">
@@ -1622,7 +1623,7 @@ export default function CombatEngine({
         <div className="w-full max-w-2xl mb-2 animate-in fade-in duration-300">
           <div className="panel rounded-2xl px-3 py-2.5 flex items-center gap-3 border-red-500/40" style={{ boxShadow: "0 10px 34px -14px rgba(239,68,68,0.7)" }}>
             <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-red-600/70 shrink-0 bg-[#1a0808] shadow-lg">
-              <img src={bossDef.image} alt={bossHpData.name} className="w-full h-full object-cover" />
+              <ArtImage src={bossDef.image} alt={bossHpData.name} fallbackText="☠" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between text-[10px] text-red-300 font-bold uppercase tracking-wide mb-1 gap-2">

@@ -15,3 +15,11 @@ test("missing database configuration does not invent a connection", () => {
   assert.equal(getPostgresConnectionString({}), undefined);
   assert.equal(getPostgresConnectionString({ DATABASE_URL: "", POSTGRES_URL: " " }), undefined);
 });
+
+test("unconfigured Vercel previews name the Preview environment, not Production", async () => {
+  const { getDatabaseSetupMessage } = await import("../src/db/config");
+  assert.match(getDatabaseSetupMessage({ VERCEL: "1", VERCEL_ENV: "preview" }), /Preview environment/);
+  assert.match(getDatabaseSetupMessage({ VERCEL: "1", VERCEL_ENV: "production" }), /Production environment/);
+  assert.doesNotMatch(getDatabaseSetupMessage({ VERCEL: "1", VERCEL_ENV: "preview" }), /PGLITE_DATA_DIR/);
+  assert.match(getDatabaseSetupMessage({ NODE_ENV: "production" }), /persistent directory/);
+});

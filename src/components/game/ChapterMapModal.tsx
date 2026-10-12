@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { CHAPTERS, ENEMY_TYPES } from "@/lib/gameData";
+import ArtImage from "@/components/game/ArtImage";
 import { sounds } from "@/lib/soundEffects";
 import { Lock, Skull, CheckCircle2, Play, Swords, Crown, Ghost, MapPin } from "@/components/game/PixelIcons";
 
@@ -91,7 +92,7 @@ export default function ChapterMapModal({
                       if (!e) return null;
                       return (
                         <div key={key} className="flex items-center gap-2 bg-black/50 border border-white/10 rounded-xl px-2 py-1.5 backdrop-blur-sm">
-                          <img src={e.image} alt={e.name} className="w-9 h-9 rounded-lg border border-white/10 object-cover" />
+                          <ArtImage src={e.image} alt={e.name} fallbackText="☠" className="w-9 h-9 rounded-lg border border-white/10 object-cover" />
                           <div>
                             <div className="text-[10px] text-white font-semibold leading-none">{e.name}</div>
                             <div className="text-[9px] text-neutral-400 font-mono leading-none mt-1">
@@ -113,7 +114,7 @@ export default function ChapterMapModal({
               </div>
               <div className="flex items-center gap-3.5 mt-3">
                 <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-red-600/60 bg-black/50 shrink-0 shadow-[0_16px_40px_-16px_rgba(239,68,68,0.8)]">
-                  <img src={chapter.boss.image} alt={chapter.boss.name} className="w-full h-full object-cover object-top" />
+                  <ArtImage src={chapter.boss.image} alt={chapter.boss.name} fallbackText="☠" className="w-full h-full object-cover object-top" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-black text-white uppercase leading-tight">{chapter.boss.name}</div>

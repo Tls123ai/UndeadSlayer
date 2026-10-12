@@ -54,3 +54,9 @@ test("save ownership comes only from a valid database-backed session", async ({ 
     await second.dispose();
   }
 });
+
+test("health only declares readiness after verifying the account/save schema", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toMatchObject({ ok: true, persistent: true, schemaReady: true });
+});

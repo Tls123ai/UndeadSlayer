@@ -2,18 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { finishLoading, LOADING_SCREEN_DURATIONS } from "../src/lib/clientApi";
 
-test("fast startup loads keep the screen visible for two seconds", async (t) => {
+test("fast startup loads keep the screen visible for the eight-second intro", async (t) => {
   t.mock.method(performance, "now", () => 0);
   t.mock.timers.enable({ apis: ["setTimeout"] });
   let finished = false;
   const pending = finishLoading(0).then(() => { finished = true; });
-  t.mock.timers.tick(1_999);
+  t.mock.timers.tick(7_999);
   await Promise.resolve();
   assert.equal(finished, false);
   t.mock.timers.tick(1);
   await pending;
   assert.equal(finished, true);
-  assert.equal(LOADING_SCREEN_DURATIONS.startup, 2_000);
+  assert.equal(LOADING_SCREEN_DURATIONS.startup, 8_000);
 });
 
 test("authentication and cached battle loads remain legible for one second", async (t) => {
@@ -32,7 +32,7 @@ test("authentication and cached battle loads remain legible for one second", asy
 });
 
 test("slow loading does not add another full screen duration", async (t) => {
-  t.mock.method(performance, "now", () => 5_000);
+  t.mock.method(performance, "now", () => 15_000);
   t.mock.timers.enable({ apis: ["setTimeout"] });
   let finished = false;
   const pending = finishLoading(0).then(() => { finished = true; });

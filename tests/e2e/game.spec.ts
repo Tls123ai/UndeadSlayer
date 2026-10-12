@@ -39,7 +39,7 @@ test("startup displays a branded accessible loader while the session/database is
   await expect(page.getByTestId("loading-screen").filter({ visible: true })).toHaveCount(0);
 });
 
-test("fast cached startup still shows the loading screen for at least two seconds", async ({ page }) => {
+test("fast cached startup still shows the loading screen for the eight-second intro", async ({ page }) => {
   await page.addInitScript(() => {
     const measurements: { started?: number; finished?: number } = {};
     Object.defineProperty(window, "loadingMeasurements", { value: measurements });
@@ -66,7 +66,7 @@ test("fast cached startup still shows the loading screen for at least two second
     if (timing.started === undefined || timing.finished === undefined) throw new Error("Loading timing was not recorded.");
     return timing.finished - timing.started;
   });
-  expect(duration).toBeGreaterThanOrEqual(1_900);
+  expect(duration).toBeGreaterThanOrEqual(7_900);
 });
 
 test("database/startup failures have a retry screen instead of silently falling through to login", async ({ page }) => {
@@ -217,4 +217,18 @@ test.describe("mobile accessibility", () => {
     expect(await page.locator(".realm-loader__rune").first().evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
     await expect(page.getByRole("button", { name: "Create Account", exact: true })).toBeVisible();
   });
+});
+
+test("legacy SQL errors during sign-in are redacted instead of exposing queries or account parameters", async ({ page }) => {
+  await page.route("**/api/auth/login", (route) => route.fulfill({ status: 500, json: {
+    error: 'Failed query: select "id", "username", "password_hash" from "users" where "users"."username" = $1 limit $2 params: sensitive-account,1',
+  } }));
+  await page.goto("/");
+  await page.getByLabel("Slayer Username").fill("test-slayer");
+  await page.getByLabel("Secret Passphrase", { exact: true }).fill("testpass123");
+  await page.getByRole("button", { name: "Sign In & Resume Quest" }).click();
+  const alert = page.getByRole("alert").filter({ hasText: "save database" });
+  await expect(alert).toContainText("temporarily unavailable");
+  await expect(alert).not.toContainText(/Failed query|password_hash|select|params:|sensitive-account/i);
+  await expect(page.getByLabel("Slayer Username")).toHaveValue("test-slayer");
 });

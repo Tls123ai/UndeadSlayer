@@ -1,3 +1,5 @@
+import { safeServerErrorMessage } from "./databaseErrors";
+
 export class RequestError extends Error {
   constructor(message: string, public status = 0) {
     super(message);
@@ -22,7 +24,7 @@ export async function requestJson<T>(url: string, options: RequestInit = {}, tim
     }
     if (!response.ok) {
       const error = data && typeof data === "object" && "error" in data ? data.error : null;
-      throw new RequestError(typeof error === "string" ? error : "The game server could not complete this request.", response.status);
+      throw new RequestError(safeServerErrorMessage(error), response.status);
     }
     return data as T;
   } catch (error) {
@@ -39,7 +41,7 @@ export async function requestJson<T>(url: string, options: RequestInit = {}, tim
 // Keep the loading screen readable even when the database and artwork are cached.
 // These are minimum screen durations, NOT simulated asset-loading percentages.
 export const LOADING_SCREEN_DURATIONS = {
-  startup: 2_000,
+  startup: 8_000,
   authentication: 1_000,
   battle: 1_000,
 } as const;
@@ -67,4 +69,4 @@ export async function finishLoading(
   });
 }
 
-export const errorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+export const errorMessage = (error: unknown, fallback: string) => safeServerErrorMessage(error instanceof Error ? error.message : undefined, fallback);

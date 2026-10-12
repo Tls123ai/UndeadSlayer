@@ -3,6 +3,7 @@
 import { PixelGlyph } from "@/components/game/PixelIcons";
 import React, { useState, useRef, useEffect } from "react";
 import { HEROES, HERO_CLASS_LIST } from "@/lib/gameData";
+import ArtImage from "@/components/game/ArtImage";
 import type { SpriteKit } from "@/lib/sprites";
 import { drawUnit } from "@/lib/sprites";
 import { getSpriteImage, HERO_CROP } from "@/lib/spriteImages";
@@ -149,7 +150,7 @@ export default function CharacterSelectModal({
                     } bg-black/40`}
                   >
                     <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: `${h.color}22` }}>
-                      <img src={h.image} alt={h.name} className="w-full h-full object-cover object-top" />
+                      <ArtImage src={h.image} alt={h.name} fallbackText={h.classIcon} className="w-full h-full object-cover object-top" />
                       {!unlocked && (
                         <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center gap-1">
                           <Lock className="w-6 h-6 text-amber-400" />
@@ -201,7 +202,7 @@ export default function CharacterSelectModal({
                   className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl overflow-hidden border-2 shadow-2xl"
                   style={{ borderColor: hero.accentColor, backgroundColor: `${hero.color}22`, boxShadow: `0 20px 50px -20px ${hero.color}` }}
                 >
-                  <img src={hero.image} alt={hero.name} className="w-full h-full object-cover object-top" />
+                  <ArtImage src={hero.image} alt={hero.name} fallbackText={hero.classIcon} className="w-full h-full object-cover object-top" />
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-black/40 px-2 py-1">
                   <div className="text-[9px] uppercase tracking-wider text-neutral-400 text-center mb-0.5">

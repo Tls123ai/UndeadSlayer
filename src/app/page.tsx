@@ -4,6 +4,7 @@ import { PixelGlyph } from "@/components/game/PixelIcons";
 import React, { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import PixelScene from "@/components/game/PixelScene";
+import ArtImage from "@/components/game/ArtImage";
 import AuthModal from "@/components/auth/AuthModal";
 import CharacterSelectModal from "@/components/game/CharacterSelectModal";
 import ChapterMapModal from "@/components/game/ChapterMapModal";
@@ -372,7 +373,7 @@ export default function GameRootPage() {
                 className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl overflow-hidden border-2 shadow-2xl transition-transform duration-300 group-hover:scale-105"
                 style={{ borderColor: activeHero.accentColor, backgroundColor: activeHero.color, boxShadow: `0 24px 60px -24px ${activeHero.color}` }}
               >
-                <img src={activeHero.image} alt={activeHero.name} className="w-full h-full object-cover object-top" />
+                <ArtImage src={activeHero.image} fallbackText={activeHero.classIcon} alt={activeHero.name} className="w-full h-full object-cover object-top" />
               </div>
               <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-neutral-950 border border-amber-500/60 text-amber-400 text-[9px] font-bold uppercase whitespace-nowrap shadow">
                 Vanguard
@@ -435,7 +436,7 @@ export default function GameRootPage() {
               {/* Chapter boss preview */}
               <div className="mt-3.5 flex items-center gap-3 rounded-2xl border border-red-800/50 bg-red-950/25 p-2.5">
                 <div className="w-16 h-16 rounded-xl overflow-hidden border border-red-700/60 bg-black/40 shrink-0 shadow-lg">
-                  <img src={currentChapter.boss.image} alt={currentChapter.boss.name} className="w-full h-full object-cover object-top" />
+                  <ArtImage src={currentChapter.boss.image} fallbackText="☠️" alt={currentChapter.boss.name} className="w-full h-full object-cover object-top" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-[10px] text-red-400 uppercase font-bold tracking-wide">Chapter Boss</div>

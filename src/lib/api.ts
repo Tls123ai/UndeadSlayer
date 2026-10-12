@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DatabaseUnavailableError } from "@/db";
 import { ValidationError } from "./validation";
+import { inspectDatabaseFailure, safeServerErrorMessage } from "./databaseErrors";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -25,10 +26,17 @@ export function json(data: unknown, status = 200) {
 }
 
 export function apiError(error: unknown, context: string) {
-  if (error instanceof ValidationError) return json({ error: error.message }, 400);
-  if (error instanceof ApiError) return json({ error: error.message }, error.status);
-  if (error instanceof DatabaseUnavailableError) return json({ error: error.message }, 503);
-  // Never return SQL, connection strings, password hashes, or internal exceptions.
-  console.error(`[${context}] Request failed.`, error instanceof Error ? error.name : "Unknown error");
+  if (error instanceof ValidationError) return json({ error: safeServerErrorMessage(error.message) }, 400);
+  if (error instanceof ApiError) return json({ error: safeServerErrorMessage(error.message) }, error.status);
+  const failure = inspectDatabaseFailure(error);
+  if (error instanceof DatabaseUnavailableError || failure) {
+    // Log only safe diagnostic codes, never the original query/params/URL.
+    console.error(`[${context}] Database request failed.`, { code: error instanceof DatabaseUnavailableError ? error.code : failure!.code, sqlState: error instanceof DatabaseUnavailableError ? error.sqlState : failure?.sqlState });
+    return json({
+      error: safeServerErrorMessage(error instanceof DatabaseUnavailableError ? error.message : failure!.message),
+      code: error instanceof DatabaseUnavailableError ? error.code : failure!.code,
+    }, 503);
+  }
+  console.error(`[${context}] Request failed.`);
   return json({ error: "The game server could not complete this request. Please try again." }, 503);
 }

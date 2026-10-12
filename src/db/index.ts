@@ -6,7 +6,8 @@ import { drizzle as embeddedDrizzle, type PgliteDatabase } from "drizzle-orm/pgl
 import { Pool } from "pg";
 import * as schema from "./schema";
 import { ensureSchema } from "./ensureSchema";
-import { getPostgresConnectionString } from "./config";
+import { getPostgresConnectionString, getDatabaseSetupMessage } from "./config";
+import { inspectDatabaseFailure, DATABASE_ERROR_MESSAGES, type DatabaseErrorCode } from "@/lib/databaseErrors";
 
 export type AppDatabase = NodePgDatabase<typeof schema> | PgliteDatabase<typeof schema>;
 export type DatabaseConnection =
@@ -14,9 +15,14 @@ export type DatabaseConnection =
   | { kind: "embedded"; db: PgliteDatabase<typeof schema>; client: PGlite };
 
 export class DatabaseUnavailableError extends Error {
-  constructor(message = "The save database is unavailable. Please try again in a moment.", options?: ErrorOptions) {
-    super(message, options);
+  readonly code: DatabaseErrorCode;
+  readonly sqlState?: string;
+  constructor(message?: string, options?: ErrorOptions, code?: DatabaseErrorCode) {
+    const failure = inspectDatabaseFailure(options?.cause);
+    super(message || failure?.message || DATABASE_ERROR_MESSAGES.DATABASE_UNAVAILABLE, options);
     this.name = "DatabaseUnavailableError";
+    this.code = code || failure?.code || "DATABASE_UNAVAILABLE";
+    this.sqlState = failure?.sqlState;
   }
 }
 
@@ -36,9 +42,7 @@ export function getDatabaseMode(): DatabaseConnection["kind"] | "unconfigured" {
 async function connectDatabase(): Promise<DatabaseConnection> {
   const mode = getDatabaseMode();
   if (mode === "unconfigured") {
-    throw new DatabaseUnavailableError(
-      "The production save database is not connected. Connect PostgreSQL in your hosting project, set DATABASE_URL or POSTGRES_URL for this deployment, and redeploy. For a single-server installation, set PGLITE_DATA_DIR to a persistent directory.",
-    );
+    throw new DatabaseUnavailableError(getDatabaseSetupMessage(), undefined, "DATABASE_NOT_CONFIGURED");
   }
 
   let connection: DatabaseConnection | undefined;
