@@ -1,31 +1,40 @@
 /**
- * Client-side image cache so battle sprites can be drawn from the real
- * character artwork (painted PNG portraits or generated SVG portraits).
- * Returns null until an image has finished decoding — callers fall back to the
- * vector sprite so nothing ever renders blank or stretched.
+ * Client-side image cache for hero and monster artwork.
+ *
+ * Images are drawn repeatedly by the canvas battle renderer, so cache the
+ * Image objects, wait for successful decoding before returning them, and
+ * discard broken sources so a later render can retry instead of staying blank.
  */
-
 const cache = new Map<string, HTMLImageElement>();
+const failed = new Set<string>();
 
 export function getSpriteImage(src?: string | null): HTMLImageElement | null {
-  if (!src) return null;
-  if (typeof window === "undefined") return null;
+  if (!src || typeof window === "undefined" || failed.has(src)) return null;
 
   let img = cache.get(src);
   if (!img) {
     img = new Image();
-    img.crossOrigin = "anonymous";
     img.decoding = "async";
-    img.src = src;
+    img.onload = () => {
+      // A successful load makes the cached image available on the next frame.
+      failed.delete(src);
+    };
+    img.onerror = () => {
+      failed.add(src);
+      cache.delete(src);
+    };
     cache.set(src, img);
+    img.src = src;
   }
+
+  // naturalWidth protects against broken URLs and images that are still loading.
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
-/** Warm the cache before a battle starts (heroes, enemies, boss). */
+/** Start loading the artwork early; the canvas renderer will pick it up once decoded. */
 export function preloadSprites(srcs: Array<string | undefined | null>) {
-  srcs.forEach((s) => {
-    if (s) getSpriteImage(s);
+  srcs.forEach((src) => {
+    if (src) getSpriteImage(src);
   });
 }
 
